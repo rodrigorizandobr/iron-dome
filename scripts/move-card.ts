@@ -158,14 +158,16 @@ async function main(): Promise<void> {
 
     // 6. Move the item to target column
     /* eslint-disable-next-line i18next/no-literal-string */
-    console.log(`  → Moving item to column '${targetOption.name}'...`);    /* eslint-disable-next-line i18next/no-literal-string */    executeGhCommand(
+    console.log(`  → Moving item to column '${targetOption.name}'...`);
+    /* eslint-disable-next-line i18next/no-literal-string */ executeGhCommand(
       `gh project item-edit --id ${itemId} --project-id ${projectId} --field-id ${statusField.id} --single-select-option-id ${targetOption.id}`,
       'item-edit',
     );
 
     // 7. Update issue label for visual consistency
     /* eslint-disable-next-line i18next/no-literal-string */
-    console.log('  → Updating issue label...');    /* eslint-disable-next-line i18next/no-literal-string */    executeGhCommand(
+    console.log('  → Updating issue label...');
+    /* eslint-disable-next-line i18next/no-literal-string */ executeGhCommand(
       `gh issue edit ${ISSUE_NUMBER} --add-label "${TARGET_COLUMN.toLowerCase()}"`,
       'issue edit',
     );

@@ -362,12 +362,14 @@ npm run test:unit -- --coverage       # Uses v8 provider, no babel errors
 ### Scenario 7: "Integration Tests Fail with vm-modules Error"
 
 **Symptom:**
+
 ```
 Error: A dynamic import callback was invoked without --experimental-vm-modules
 AWS SDK error wrapper for TypeError [ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG]
 ```
 
 **Root Cause:**
+
 - AWS SDK v3 uses ES modules (ESM) for dynamic imports
 - Node.js requires `--experimental-vm-modules` flag for ESM dynamic imports
 - Jest needs special configuration to treat TypeScript as ESM
@@ -376,6 +378,7 @@ AWS SDK error wrapper for TypeError [ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG
 **Fix:**
 
 1. **Update npm script in `package.json`:**
+
 ```json
 {
   "test:integrated": "NODE_OPTIONS=--experimental-vm-modules jest --config jest-int.json --passWithNoTests"
@@ -383,6 +386,7 @@ AWS SDK error wrapper for TypeError [ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG
 ```
 
 2. **Update `jest-int.json` with ESM config:**
+
 ```json
 {
   "preset": "ts-jest",
@@ -408,21 +412,25 @@ AWS SDK error wrapper for TypeError [ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG
 3. **Update test file imports (fix supertest):**
 
 ❌ **Bad (CommonJS style):**
+
 ```typescript
 import * as request from 'supertest';
 ```
 
 ✅ **Good (ESM style):**
+
 ```typescript
 import request from 'supertest';
 ```
 
 4. **Verify:**
+
 ```bash
 npm run test:integrated    # Should run without vm-modules errors
 ```
 
 **Why this works:**
+
 - `NODE_OPTIONS=--experimental-vm-modules` enables ES module dynamic import feature
 - `useESM: true` in jest-int.json treats TS files as ESM
 - `extensionsToTreatAsEsm` tells Jest to use Node.js native ESM loader

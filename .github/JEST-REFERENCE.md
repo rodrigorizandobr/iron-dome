@@ -269,6 +269,7 @@ Error: A dynamic import callback was invoked without --experimental-vm-modules
 **Cause**: AWS SDK v3 requires Node.js ESM dynamic imports
 
 **Solution in npm script:**
+
 ```bash
 NODE_OPTIONS=--experimental-vm-modules npm run test:integrated
 ```
@@ -278,6 +279,7 @@ This is already configured in `package.json` under `test:integrated` script.
 ### Jest Configuration for Integration Tests
 
 **jest-int.json** includes:
+
 ```json
 {
   "preset": "ts-jest",
@@ -292,16 +294,19 @@ This is already configured in `package.json` under `test:integrated` script.
 **supertest** requires different import in ESM context:
 
 ❌ **CommonJS (don't use):**
+
 ```typescript
 import * as request from 'supertest';
 ```
 
 ✅ **ESM (correct):**
+
 ```typescript
 import request from 'supertest';
 ```
 
 **Same for other vendors with default exports:**
+
 - `import axios from 'axios'` (not `import * as axios`)
 - `import jwt from 'jsonwebtoken'` (not `import * as jwt`)
 
@@ -313,6 +318,7 @@ npm run test:integrated -- --coverage # Collect coverage with v8
 ```
 
 **Expected output:**
+
 ```
 Test Suites: 1 failed, 1 total  # May fail on data operations (DynamoDB setup)
 Tests:       4 passed, 3 failed  # Auth tests pass, data tests may fail without LocalStack

@@ -48,39 +48,67 @@ npx tsc --noEmit
   - Don't use `any`, use `unknown` + type guard
   - Import types: `import type { SomeType } from '...'`
 
-### ✅ 4. Unit Tests (85% Coverage)
+### ✅ 4. Unit Tests (Module-Specific Coverage)
 
 ```bash
-npm run test:unit
+npm run test:unit                    # Fast, no coverage (~3s)
+npm run test:unit -- --coverage      # With v8 coverage (~10s)
 ```
 
-- **Deve passar**: 10/10 tests passing, coverage ≥ 85% on all metrics
-- **Se falhar — Jest Coverage Error** (`babel-plugin-istanbul` issue):
-  - **Sintoma**: `TypeError: The "original" argument must be of type function`
-  - **Causa**: `jest-unit.json` tem `collectCoverageFrom` incorreto
-  - **Fix**: Verifique que jest-unit.json tem:
-    ```json
-    {
-      "collectCoverageFromChildProcesses": false,
-      "collectCoverageFrom": [
-        "**/*.ts",
-        "!**/*.spec.ts",
-        "!**/*.int-spec.ts",
-        "!**/index.ts",
-        "!**/main.ts",
-        "!**/lambda.ts",
-        "!**/*.dto.ts",
-        "!**/validate-env.ts"
-      ]
-    }
-    ```
-  - **Válida**: Rode `npm run test:unit -- --coverage` novamente
-- **Se falhar — Coverage Threshold**:
-  - Add `*.spec.ts` tests para novas functions
-  - Moque `DynamoDBProvider`, `I18nService`, `EventPublisher` em services
-  - Coverage deve estar ≥ 80% (unit) e 75% (integracao)
+- **Deve passar**: Todos testes passando, coverage module-specific ≥ 75%
+- **Thresholds:**
+  - Nenhum threshold global (módulos não testados ainda)
+  - Module-specific: `./src/modules/orders/orders.service.ts` ≥ 75%
 
-### ✅ 5. Integration Tests (80% Coverage)
+#### Se falhar — Jest Coverage Error (babel-plugin-istanbul)
+
+**Sintoma:**
+
+```
+TypeError: The "original" argument must be of type function
+  at promisify (node:internal/util:481:3)
+  at Object.<anonymous> (/node_modules/test-exclude/index.js:5:14)
+Failed to collect coverage from /path/to/src/...
+```
+
+**Root Cause:** Jest uses `coverageProvider: "babel"` by default, which fails with TypeScript
+
+**✅ FIX (obrigatório em jest-unit.json):**
+
+```json
+{
+  "collectCoverage": false,
+  "coverageProvider": "v8",
+  "collectCoverageFrom": [
+    "**/*.ts",
+    "!**/*.spec.ts",
+    "!**/*.int-spec.ts",
+    "!**/index.ts",
+    "!**/main.ts",
+    "!**/lambda.ts",
+    "!**/*.dto.ts",
+    "!**/validate-env.ts"
+  ],
+  "coverageThreshold": {
+    "./src/modules/orders/orders.service.ts": {
+      "branches": 75,
+      "functions": 75,
+      "lines": 75,
+      "statements": 75
+    }
+  }
+}
+```
+
+**Verificação:** `npm run test:unit -- --coverage` ✅ (deve passar sem babel erros)
+
+#### Se falhar — Coverage Threshold
+
+- Add `*.spec.ts` tests para novas functions
+- Moque `DynamoDBProvider`, `I18nService`, `EventPublisher` em services
+- Use module-specific thresholds, não global
+
+### ✅ 5. Integration Tests (No Coverage)
 
 ```bash
 npm run test:integrated

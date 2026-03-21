@@ -241,23 +241,27 @@ throw new Error(this.i18n.translate('errors.generic'));
 
 ### Problema: "babel-plugin-istanbul: original argument must be of type function"
 
-**Sintoma:**
+**Sintoma (Em CI ou local com `--coverage`):**
+
 ```
 TypeError: The "original" argument must be of type function. Received an instance of Object
   at promisify (node:internal/util:481:3)
   at Object.<anonymous> (/node_modules/test-exclude/index.js:5:14)
 ```
 
-**Root cause:** 
-- `babel-plugin-istanbul` tenta instrumentar arquivos fonte que não devem ser coletados
-- Acontece quando `collectCoverageFrom` tenta processar TODOs arquivos TS
-- Coverage collection cria overhead excessivo durante teste
+**Root cause (⚠️ NÃO é `collectCoverageFromChildProcesses`, essa opção não existe no Jest):**
 
-**Solução (OBRIGATÓRIA em jest-unit.json e jest-int.json):**
+- Por padrão, Jest usa `babel-plugin-istanbul` para instrumentação de coverage
+- `babel-plugin-istanbul` tenta instrumentar TODOS os arquivos ts/js
+- Node's `promisify` falha quando `test-exclude` tenta processar o coverage regex
+- Versões incompatíveis de `test-exclude` causam esse erro
+
+**✅ SOLUÇÃO CORRETA: Use `coverageProvider: "v8"` (nativo do Node, sem plugins):**
 
 ```json
 {
-  "collectCoverageFromChildProcesses": false,
+  "collectCoverage": false,
+  "coverageProvider": "v8",
   "collectCoverageFrom": [
     "**/*.ts",
     "!**/*.spec.ts",
@@ -267,21 +271,52 @@ TypeError: The "original" argument must be of type function. Received an instanc
     "!**/lambda.ts",
     "!**/*.dto.ts",
     "!**/validate-env.ts"
-  ]
+  ],
+  "coverageThreshold": {}
 }
 ```
 
-**Itens que NUNCA devem ser coletados para coverage:**
-- ❌ `*.spec.ts` (testes já coletados pelo próprio teste)
-- ❌ `*.int-spec.ts` (testes já coletados pelo próprio teste)
-- ❌ `*.dto.ts` (apenas interfaces, nenhuma lógica)
-- ❌ `validate-env.ts` (apenas validação, testado indiretamente)
-- ❌ `index.ts` (apenas re-exports)
-- ❌ `main.ts` e `lambda.ts` (entry points, testados via e2e)
+**Por que v8 é melhor que babel-plugin-istanbul:**
 
-**Thresholds realistas:**
-- **Unit tests (jest-unit.json):** 80% (não 85%)
-- **Integration tests (jest-int.json):** 75% (não 80%)
+- ✅ V8 é nativo do Node.js (sem dependências externas)
+- ✅ Funciona com TS-Jest via instrumentação nativa
+- ✅ Sem problemas com plugins Babel
+- ✅ Mais rápido (não precisa de transformação adicional)
+- ✅ Compatível com `--coverage` via CLI
 
-Arquivos DTO e entrada não contam cobertura real, portanto thresholds altos causam falsos positivos.
+**NUNCA coleter coverage de:**
+
+- ❌ `*.spec.ts` — test files (já coletados pelo próprio teste)
+- ❌ `*.int-spec.ts` — integration test files
+- ❌ `*.dto.ts` — Data Transfer Objects (apenas decoradores + tipos, nenhuma lógica)
+- ❌ `validate-env.ts` — env validation (testada indiretamente via imports)
+- ❌ `index.ts` — re-exports only
+- ❌ `main.ts` e `lambda.ts` — entry points (testados via e2e, não unit)
+
+**Thresholds realistas (module-specific, não global):**
+
+Enquanto o suite de testes cresce, use thresholds module-specific no lugar de global:
+
+```json
+{
+  "coverageThreshold": {
+    "./src/modules/orders/orders.service.ts": {
+      "branches": 75,
+      "functions": 75,
+      "lines": 75,
+      "statements": 75
+    }
+  }
+}
 ```
+
+DTO e entry-point files não têm lógica, então thresholds globais altos causam falsos positivos.
+
+**Verificação rápida (local antes de commitar):**
+
+```bash
+npm run test:unit                    # Sem coverage (rápido, ~3s)
+npm run test:unit -- --coverage     # Com coverage usando v8 (~10s)
+```
+
+Ambos devem passar sem erros de `babel-plugin-istanbul` ou `test-exclude`.

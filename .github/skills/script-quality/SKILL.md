@@ -416,7 +416,7 @@ main();
 
 **Checklist:**
 
-- [ ] Validate COPILOT*TOKEN, ISSUE*_, GITHUB\__ env vars
+- [ ] Validate COPILOT*TOKEN, ISSUE*\_, GITHUB\_\_ env vars
 - [ ] Handle OpenAI API errors (rate limit, auth, timeout)
 - [ ] Log API calls (input tokens, output tokens, response time)
 - [ ] Write output files atomically (no partial writes)
