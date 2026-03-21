@@ -22,5 +22,9 @@
     "created": "Order {id} created successfully",
     "updated": "Order {id} updated successfully",
     "deleted": "Order {id} removed successfully"
+  },
+  "audit_trails": {
+    "not_found": "Audit trail entry {id} not found",
+    "fetch_failed": "Failed to fetch audit trail entries"
   }
 }

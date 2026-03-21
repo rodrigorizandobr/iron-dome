@@ -22,5 +22,9 @@
     "created": "Pedido {id} criado com sucesso",
     "updated": "Pedido {id} atualizado com sucesso",
     "deleted": "Pedido {id} removido com sucesso"
+  },
+  "audit_trails": {
+    "not_found": "Entrada de auditoria {id} não encontrada",
+    "fetch_failed": "Falha ao buscar entradas de auditoria"
   }
 }

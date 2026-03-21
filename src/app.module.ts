@@ -16,6 +16,7 @@ import { CloudWatchLogsProvider } from './providers/aws/cloudwatch-logs.provider
 import { I18nService } from './common/core/i18n.service';
 import { HealthModule } from './modules/health/health.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { AuditTrailsModule } from './modules/audit-trails/audit-trails.module';
 import { AuthModule } from './common/guards/auth.module';
 import { AppController } from './app.controller';
 
@@ -28,6 +29,7 @@ import { AppController } from './app.controller';
     AuthModule,
     HealthModule,
     OrdersModule,
+    AuditTrailsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -58,8 +60,6 @@ import { AppController } from './app.controller';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(MultiTenancyMiddleware, RequestLoggingMiddleware)
-      .forRoutes('*');
+    consumer.apply(MultiTenancyMiddleware, RequestLoggingMiddleware).forRoutes('*');
   }
 }
