@@ -5,8 +5,11 @@ import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { OrdersModule } from './orders.module';
 import { AuthModule } from '../../common/guards/auth.module';
+import { MultiTenancyMiddleware } from '../../common/middlewares/multi-tenancy.middleware';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
+// In ESM mode (--experimental-vm-modules), jest globals must be imported explicitly
+import { jest } from '@jest/globals';
 
 const ORDERS_PATH = '/v1/orders';
 const TENANT_ID = 'tenant-int';
@@ -17,41 +20,30 @@ const TENANT_HEADER = 'x-tenant-id';
 const ORDER_ID = 'mock-order-id';
 
 // Mock DynamoDB responses (no LocalStack needed)
+// Uses mockImplementation to avoid TypeScript generic inference issues with @jest/globals
+const mockOrder = {
+  id: ORDER_ID,
+  tenantId: TENANT_ID,
+  productName: PRODUCT_NAME,
+  amount: 1000,
+  deleted: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 const mockDynamoDBProvider = {
-  putItem: jest.fn().mockResolvedValue({}),
-  getItem: jest
-    .fn()
-    .mockImplementation((_pk: unknown, sk: unknown) => {
-      // Return 404-like response for nonexistent IDs
-      if (typeof sk === 'string' && sk.includes('nonexistent')) {
-        return Promise.resolve(null);
-      }
-      // Return mock order for valid IDs
-      return Promise.resolve({
-        id: ORDER_ID,
-        tenantId: TENANT_ID,
-        productName: PRODUCT_NAME,
-        amount: 1000,
-        deleted: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }),
-  query: jest.fn().mockResolvedValue({
-    items: [
-      {
-        id: ORDER_ID,
-        tenantId: TENANT_ID,
-        productName: PRODUCT_NAME,
-        amount: 1000,
-        deleted: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ],
-    cursor: undefined,
+  getResourceName: jest.fn().mockImplementation(() => 'test-table'),
+  putItem: jest.fn().mockImplementation(() => Promise.resolve({})),
+  getItem: jest.fn().mockImplementation((_pk: unknown, sk: unknown) => {
+    if (typeof sk === 'string' && sk.includes('nonexistent')) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(mockOrder);
   }),
-  updateItem: jest.fn().mockResolvedValue({}),
+  query: jest
+    .fn()
+    .mockImplementation(() => Promise.resolve({ items: [mockOrder], cursor: undefined })),
+  updateItem: jest.fn().mockImplementation(() => Promise.resolve({})),
 };
 
 describe('OrdersController (integration)', () => {
@@ -69,6 +61,7 @@ describe('OrdersController (integration)', () => {
 
     app = module.createNestApplication();
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+    app.use(new MultiTenancyMiddleware().use.bind(new MultiTenancyMiddleware()));
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
 
@@ -125,7 +118,7 @@ describe('OrdersController (integration)', () => {
         .set(TENANT_HEADER, TENANT_ID)
         .expect(200);
 
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray((res.body as { items: unknown[] }).items)).toBe(true);
     });
   });
 
@@ -141,9 +134,7 @@ describe('OrdersController (integration)', () => {
 
   describe('DELETE /v1/orders/:id (soft-delete)', () => {
     it('should reject unauthenticated requests', async () => {
-      await request(app.getHttpServer())
-        .delete(`${ORDERS_PATH}/some-id`)
-        .expect(401);
+      await request(app.getHttpServer()).delete(`${ORDERS_PATH}/some-id`).expect(401);
     });
   });
 });
