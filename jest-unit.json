@@ -5,7 +5,21 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "collectCoverageFrom": ["**/*.(t|j)s"],
+  "collectCoverageFrom": [
+    "**/*.ts",
+    "!**/*.spec.ts",
+    "!**/*.int-spec.ts",
+    "!**/index.ts",
+    "!**/main.ts",
+    "!**/lambda.ts"
+  ],
+  "coveragePathIgnorePatterns": [
+    "/node_modules/",
+    "/.next/",
+    "/dist/",
+    "\\.spec\\.ts$",
+    "\\.int-spec\\.ts$"
+  ],
   "coverageDirectory": "../coverage/unit",
   "testEnvironment": "node",
   "coverageThreshold": {
