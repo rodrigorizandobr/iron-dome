@@ -1,0 +1,227 @@
+name: Autonomous Board Agents
+
+on:
+  issues:
+    types: [labeled]
+
+# Permissões necessárias para a IA ler código, commitar na branch e comentar nas issues
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ==========================================
+  # 1. REFINAMENT
+  # ==========================================
+  agent-refinament:
+    if: github.event.label.name == 'refinament'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci
+      
+      - name: Refinar Issue (IA)
+        env:
+          COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: npx ts-node scripts/agents/refinament.ts
+
+      - name: Avançar para Dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          # Remove a label atual para evitar duplicidade e conflitos
+          gh issue edit ${{ github.event.issue.number }} --remove-label "refinament"
+          npx ts-node scripts/move-card.ts "dev"
+
+  # ==========================================
+  # 2. DEV
+  # ==========================================
+  agent-dev:
+    if: github.event.label.name == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci
+      
+      - name: Configurar Git e Branch
+        run: |
+          git config user.name "AI Developer"
+          git config user.email "ai-dev@iron-dome.local"
+          git checkout -b feat/issue-${{ github.event.issue.number }} || git checkout feat/issue-${{ github.event.issue.number }}
+
+      - name: Desenvolver Código (IA)
+        env:
+          COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx ts-node scripts/agents/dev.ts
+      
+      - name: Commitar e Avisar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git add .
+          git commit -m "feat: código gerado pela IA para issue #${{ github.event.issue.number }}" || echo "Sem mudanças"
+          git push origin feat/issue-${{ github.event.issue.number }}
+          gh issue comment ${{ github.event.issue.number }} --body "💻 **Desenvolvimento Concluído.** Código commitado."
+
+      - name: Avançar para Dev-Test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue edit ${{ github.event.issue.number }} --remove-label "dev"
+          npx ts-node scripts/move-card.ts "dev-test"
+
+  # ==========================================
+  # 3. DEV-TEST
+  # ==========================================
+  agent-dev-test:
+    if: github.event.label.name == 'dev-test'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout da branch da Issue
+        run: git checkout feat/issue-${{ github.event.issue.number }} || echo "Aviso: Branch não encontrada!"
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci
+
+      - name: Desenvolver Testes Unitários (IA)
+        env:
+          COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: npx ts-node scripts/agents/dev-test.ts
+
+      - name: Commitar Testes
+        run: |
+          git config user.name "AI Tester"
+          git config user.email "ai-tester@iron-dome.local"
+          git add .
+          git commit -m "test: testes unitários gerados pela IA" || echo "Sem mudanças"
+          git push origin feat/issue-${{ github.event.issue.number }}
+
+      - name: Avançar para Testing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue edit ${{ github.event.issue.number }} --remove-label "dev-test"
+          npx ts-node scripts/move-card.ts "testing"
+
+  # ==========================================
+  # 4. TESTING (Feedback Loop)
+  # ==========================================
+  agent-testing:
+    if: github.event.label.name == 'testing'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git checkout feat/issue-${{ github.event.issue.number }}
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci
+
+      - name: Rodar Testes Unitários e Cobertura
+        id: run_tests
+        run: |
+          if npm run test:unit -- --coverage > test_output.txt 2>&1; then
+            echo "status=pass" >> $GITHUB_ENV
+          else
+            echo "status=fail" >> $GITHUB_ENV
+          fi
+
+      - name: Sucesso -> Move para PR
+        if: env.status == 'pass'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "✅ **Testes Passaram!** Cobertura atingida. Movendo para PR."
+          gh issue edit ${{ github.event.issue.number }} --remove-label "testing"
+          npx ts-node scripts/move-card.ts "pr"
+
+      - name: Falha -> Volta para DEV
+        if: env.status == 'fail'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "❌ **Testes Falharam.** Retornando para a IA arrumar.
+          <details><summary>Log do Erro (Jest)</summary>
+          
+          \`\`\`text
+          $(cat test_output.txt)
+          \`\`\`
+          </details>"
+          gh issue edit ${{ github.event.issue.number }} --remove-label "testing"
+          npx ts-node scripts/move-card.ts "dev"
+
+  # ==========================================
+  # 5. PR (Integração e Done)
+  # ==========================================
+  agent-pr:
+    if: github.event.label.name == 'pr'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git checkout feat/issue-${{ github.event.issue.number }}
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci
+
+      - name: CI (Lint e Testes Integrados)
+        id: ci_check
+        run: |
+          if npm run lint && npm run test:integrated > ci_output.txt 2>&1; then
+            echo "status=pass" >> $GITHUB_ENV
+          else
+            echo "status=fail" >> $GITHUB_ENV
+          fi
+
+      - name: Sucesso -> Cria Pull Request e Move para Done
+        if: env.status == 'pass'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh pr create --title "feat: Resolvendo issue #${{ github.event.issue.number }}" --body "PR automático gerado pelo agente da Iron Dome." --base main --head feat/issue-${{ github.event.issue.number }} || echo "PR já existe"
+          gh issue comment ${{ github.event.issue.number }} --body "🎉 **Pipeline Completo!** PR criado e issue movida para Done."
+          gh issue edit ${{ github.event.issue.number }} --remove-label "pr"
+          npx ts-node scripts/move-card.ts "done"
+
+      - name: Falha -> Volta para DEV
+        if: env.status == 'fail'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "❌ **CI Falhou (Lint/Integrado).** Retornando para Dev para correção.
+          <details><summary>Log do Erro</summary>
+          
+          \`\`\`text
+          $(cat ci_output.txt)
+          \`\`\`
+          </details>"
+          gh issue edit ${{ github.event.issue.number }} --remove-label "pr"
+          npx ts-node scripts/move-card.ts "dev"
