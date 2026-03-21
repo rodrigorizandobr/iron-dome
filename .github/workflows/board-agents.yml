@@ -1,7 +1,7 @@
 name: Autonomous Board Agents
 
 on:
-  # 🎯 Trigger: Manual dispatch only (more reliable than auto-trigger)
+  # 🎯 Trigger 1: Manual dispatch (explícito)
   workflow_dispatch:
     inputs:
       stage:
@@ -20,6 +20,10 @@ on:
         required: true
         type: number
 
+  # 🎯 Trigger 2: Quando issue é aberta (ex: cria card no Projects)
+  issues:
+    types: [opened]
+
 permissions:
   contents: write
   issues: write
@@ -36,15 +40,28 @@ jobs:
       - name: ✅ Validate and Output Stage
         id: validate
         run: |
-          STAGE="${{ github.event.inputs.stage }}"
-          ISSUE="${{ github.event.inputs.issue_number }}"
+          # Detecta qual trigger disparou (workflow_dispatch vs issues.opened)
+          TRIGGER="${{ github.event_name }}"
+          
+          if [ "$TRIGGER" = "workflow_dispatch" ]; then
+            # Manual dispatch: use inputs explicitamente
+            STAGE="${{ github.event.inputs.stage }}"
+            ISSUE="${{ github.event.inputs.issue_number }}"
+          elif [ "$TRIGGER" = "issues" ]; then
+            # Automático (issue criada): sempre começa em refinament
+            STAGE="refinament"
+            ISSUE="${{ github.event.issue.number }}"
+          else
+            STAGE="refinament"
+            ISSUE="${{ github.event.issue.number }}"
+          fi
           
           echo "stage=$STAGE" >> $GITHUB_OUTPUT
           echo "issue=$ISSUE" >> $GITHUB_OUTPUT
-          echo "🎯 Workflow triggered for Stage: $STAGE, Issue: #$ISSUE"
+          echo "🎯 Trigger: $TRIGGER | Stage: $STAGE | Issue: #$ISSUE"
           
           if [ -z "$STAGE" ] || [ -z "$ISSUE" ]; then
-            echo "❌ ERROR: stage and issue_number are required!"
+            echo "❌ ERROR: Could not determine stage or issue!"
             exit 1
           fi
 
