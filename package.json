@@ -22,7 +22,7 @@
     "lint:fix": "eslint '{src,test}/**/*.ts' --fix",
     "test": "jest",
     "test:unit": "jest --config jest-unit.json --passWithNoTests",
-    "test:integrated": "jest --config jest-int.json --passWithNoTests",
+    "test:integrated": "NODE_OPTIONS=--experimental-vm-modules jest --config jest-int.json --passWithNoTests",
     "test:e2e": "playwright test",
     "prepare": "husky",
     "release": "semantic-release",

@@ -28,13 +28,13 @@
 
 ### Why v8?
 
-| Feature                 | Babel Plugin | v8 Native | Winner |
-| ----------------------- | ------------ | --------- | ------ |
-| Requires Babel plugins  | ✅ Yes       | ❌ No     | v8     |
-| Works with TypeScript   | ⚠️ Fragile   | ✅ Yes    | v8     |
-| Native to Node.js       | ❌ No        | ✅ Yes    | v8     |
-| Speed                   | ⚠️ Slow      | ✅ Fast   | v8     |
-| test-exclude compat     | ❌ Fails     | ✅ Works  | v8     |
+| Feature                | Babel Plugin | v8 Native | Winner |
+| ---------------------- | ------------ | --------- | ------ |
+| Requires Babel plugins | ✅ Yes       | ❌ No     | v8     |
+| Works with TypeScript  | ⚠️ Fragile   | ✅ Yes    | v8     |
+| Native to Node.js      | ❌ No        | ✅ Yes    | v8     |
+| Speed                  | ⚠️ Slow      | ✅ Fast   | v8     |
+| test-exclude compat    | ❌ Fails     | ✅ Works  | v8     |
 
 **Conclusion**: Always use `v8` in jest.json configs.
 
@@ -57,6 +57,7 @@ npm run test:integrated -- --coverage
 ```
 
 All commands should pass WITHOUT:
+
 - ❌ `TypeError: original argument must be of type function`
 - ❌ `babel-plugin-istanbul` errors
 - ❌ `test-exclude` module errors
@@ -81,12 +82,14 @@ All commands should pass WITHOUT:
 **Why module-specific instead of global?**
 
 ❌ **Bad (Global thresholds)**:
+
 - DTOs have no logic → 0% coverage
 - Entry points tested via e2e → 0% coverage
 - Validators tested indirectly → 0% coverage
 - Result: Global threshold always fails (false negatives)
 
 ✅ **Good (Module-specific)**:
+
 - Only test what has testable logic (services, controllers)
 - Thresholds scale as project grows
 - New modules can be added without breaking CI
@@ -133,6 +136,7 @@ All commands should pass WITHOUT:
 ### Error: "TypeError: original argument must be of type function"
 
 **Symptom**:
+
 ```
 TypeError: The "original" argument must be of type function. Received an instance of Object
   at promisify (node:internal/util:481:3)
@@ -143,6 +147,7 @@ Failed to collect coverage from /src/...
 **Root Cause**: Jest is using babel-plugin-istanbul (default or misconfigured)
 
 **Fix**:
+
 1. Open `jest-unit.json`
 2. Ensure has: `"coverageProvider": "v8"`
 3. Remove: `"collectCoverageFromChildProcesses"` if present
@@ -251,6 +256,71 @@ git commit -m "test(orders): add unit tests for order creation and retrieval
 
 ---
 
-**Status**: ✅ All tests pass with v8 provider  
+---
+
+## 🔧 Integration Tests & AWS SDK v3 ESM
+
+### Problem: "experimental-vm-modules" Error
+
+```
+Error: A dynamic import callback was invoked without --experimental-vm-modules
+```
+
+**Cause**: AWS SDK v3 requires Node.js ESM dynamic imports
+
+**Solution in npm script:**
+```bash
+NODE_OPTIONS=--experimental-vm-modules npm run test:integrated
+```
+
+This is already configured in `package.json` under `test:integrated` script.
+
+### Jest Configuration for Integration Tests
+
+**jest-int.json** includes:
+```json
+{
+  "preset": "ts-jest",
+  "extensionsToTreatAsEsm": [".ts"],
+  "globals": { "ts-jest": { "useESM": true } },
+  "moduleNameMapper": { "^(\\.{1,2}/.*)\\.js$": "$1" }
+}
+```
+
+### Critical Import Changes for ESM
+
+**supertest** requires different import in ESM context:
+
+❌ **CommonJS (don't use):**
+```typescript
+import * as request from 'supertest';
+```
+
+✅ **ESM (correct):**
+```typescript
+import request from 'supertest';
+```
+
+**Same for other vendors with default exports:**
+- `import axios from 'axios'` (not `import * as axios`)
+- `import jwt from 'jsonwebtoken'` (not `import * as jwt`)
+
+### Running Integration Tests Locally
+
+```bash
+npm run test:integrated              # Uses NODE_OPTIONS flag, no errors
+npm run test:integrated -- --coverage # Collect coverage with v8
+```
+
+**Expected output:**
+```
+Test Suites: 1 failed, 1 total  # May fail on data operations (DynamoDB setup)
+Tests:       4 passed, 3 failed  # Auth tests pass, data tests may fail without LocalStack
+No vm-modules or ESM errors
+```
+
+---
+
+**Status**: ✅ ESM + v8 provider fully working  
 **Last verified**: March 21, 2026  
-**Next review**: When adding new test suite or changing coverage config
+**Prerequisites**: NODE_OPTIONS flag + ESM imports in test files

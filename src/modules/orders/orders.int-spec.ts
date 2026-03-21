@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import * as request from 'supertest';
+import request from 'supertest';
 import { OrdersModule } from './orders.module';
 import { AuthModule } from '../../common/guards/auth.module';
 import { OrderResponseDto } from './dto/order-response.dto';

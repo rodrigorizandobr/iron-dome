@@ -286,25 +286,32 @@ items.forEach(processItem);
 
 ### Scenario 6: "Jest Coverage Error: babel-plugin-istanbul"
 
-**Symptom:**
+**Symptom (Local or in CI):**
+
 ```
 TypeError: The "original" argument must be of type function. Received an instance of Object
   at promisify (node:internal/util:481:3)
   at Object.<anonymous> (/node_modules/test-exclude/index.js:5:14)
+Failed to collect coverage from /path/to/src/providers/base.provider.ts
+ERROR: The "original" argument must be of type function...
 ```
 
 **Root Cause:**
-- `jest-unit.json` or `jest-int.json` has incorrect `collectCoverageFrom` pattern
-- `babel-plugin-istanbul` tries to instrument non-test source files
-- DTOs and config files create unnecessary coverage overhead
 
-**Fix:**
+- Jest defaults to `coverageProvider: "babel"` which uses `babel-plugin-istanbul`
+- `babel-plugin-istanbul` CANNOT instrument TypeScript files reliably in all Node versions
+- `test-exclude` module fails when trying to parse coverage patterns for complex regex
 
-1. Open `jest-unit.json` and verify this config:
+⚠️ **NOT a config issue — it's a plugin incompatibility issue.**
+
+**✅ CORRECT FIX: Use v8 coverage provider (native to Node):**
+
+1. **Update `jest-unit.json`:**
 
 ```json
 {
-  "collectCoverageFromChildProcesses": false,
+  "collectCoverage": false,
+  "coverageProvider": "v8",
   "collectCoverageFrom": [
     "**/*.ts",
     "!**/*.spec.ts",
@@ -314,26 +321,112 @@ TypeError: The "original" argument must be of type function. Received an instanc
     "!**/lambda.ts",
     "!**/*.dto.ts",
     "!**/validate-env.ts"
-  ]
+  ],
+  "coverageThreshold": {
+    "./src/modules/orders/orders.service.ts": {
+      "branches": 75,
+      "functions": 75,
+      "lines": 75,
+      "statements": 75
+    }
+  }
 }
 ```
 
-2. Do the same for `jest-int.json`
+2. **Update `jest-int.json` identically (except paths for integration tests)**
 
-3. Lower thresholds to realistic values:
-   - Unit: 80% (not 85%)
-   - Integration: 75% (not 80%)
+3. **Never add these (they don't exist in Jest):**
+   - ❌ `collectCoverageFromChildProcesses`
+   - Use `coverageProvider: "v8"` instead
 
-4. Re-run:
+4. **Verify:**
+
 ```bash
-npm run test:unit -- --coverage
-npm run test:integrated -- --coverage
+npm run test:unit                     # Fast, no coverage
+npm run test:unit -- --coverage       # Uses v8 provider, no babel errors
 ```
 
-**Why this happens:**
-- DTOs have no executable logic (only data definitions)
-- Entry points (main.ts, lambda.ts) are tested end-to-end, not unit
-- Collecting coverage from these creates false negatives and instrumentatio errors
+**Why v8 works:**
+
+- V8 is Node.js's native JavaScript engine
+- No Babel plugins needed
+- Direct native coverage without transpilation
+- Works reliably with TypeScript via ts-jest
+
+**Why global thresholds fail:**
+
+- DTOs, validators, entry points have no testable logic
+- Global thresholds (80%+) are unrealistic for growing projects
+- Use module-specific thresholds instead
+
+### Scenario 7: "Integration Tests Fail with vm-modules Error"
+
+**Symptom:**
+```
+Error: A dynamic import callback was invoked without --experimental-vm-modules
+AWS SDK error wrapper for TypeError [ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG]
+```
+
+**Root Cause:**
+- AWS SDK v3 uses ES modules (ESM) for dynamic imports
+- Node.js requires `--experimental-vm-modules` flag for ESM dynamic imports
+- Jest needs special configuration to treat TypeScript as ESM
+- `supertest` exports change behavior in ESM context
+
+**Fix:**
+
+1. **Update npm script in `package.json`:**
+```json
+{
+  "test:integrated": "NODE_OPTIONS=--experimental-vm-modules jest --config jest-int.json --passWithNoTests"
+}
+```
+
+2. **Update `jest-int.json` with ESM config:**
+```json
+{
+  "preset": "ts-jest",
+  "extensionsToTreatAsEsm": [".ts"],
+  "globals": {
+    "ts-jest": {
+      "useESM": true,
+      "tsconfig": {
+        "module": "esnext",
+        "moduleResolution": "node"
+      }
+    }
+  },
+  "moduleNameMapper": {
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  },
+  "transform": {
+    "^.+\\.(t|j)s$": ["ts-jest", { "useESM": true }]
+  }
+}
+```
+
+3. **Update test file imports (fix supertest):**
+
+❌ **Bad (CommonJS style):**
+```typescript
+import * as request from 'supertest';
+```
+
+✅ **Good (ESM style):**
+```typescript
+import request from 'supertest';
+```
+
+4. **Verify:**
+```bash
+npm run test:integrated    # Should run without vm-modules errors
+```
+
+**Why this works:**
+- `NODE_OPTIONS=--experimental-vm-modules` enables ES module dynamic import feature
+- `useESM: true` in jest-int.json treats TS files as ESM
+- `extensionsToTreatAsEsm` tells Jest to use Node.js native ESM loader
+- ESM default exports bypass `import * as` pattern
 
 ---
 
