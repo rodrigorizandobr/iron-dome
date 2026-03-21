@@ -1,103 +1,228 @@
-# 🤖 Board Agents — SEM LABELS! (Totalmente Automático)
+# 🤖 Board Agents — Automated Development Pipeline
 
-## Fluxo Automático de IA por Etapas
+## 🎯 Fluxo Automático de IA por Etapas
 
-O sistema **Board Agents** automatiza todo o ciclo de desenvolvimento:
+O sistema **Board Agents** automatiza o ciclo completo de desenvolvimento:
 
 ```
 [Refinement] → [Dev] → [Dev-Test] → [Testing] → [PR] → [Done]
 ```
 
-Cada etapa é executada por um **agent especializado** em sua tarefa.
+Cada etapa é executada por um **agente especializado**.
 
 ---
 
-## 🚀 Como Iniciar Um Projeto (SEM LABELS)
+## 🚀 Como Usar (Manual Dispatch - Mais Confiável)
 
-### **Opção 1: Criar uma Issue (Recomendado)**
+### **Fluxo Recomendado:**
 
-1. **Crie uma issue** no GitHub com o título e descrição
-   - Exemplo: "Implementar autenticação JWT para user endpoints"
+1. **Crie uma issue** no GitHub com título e descrição clara
+   ```
+   Título: Implementar autenticação JWT para user endpoints
+   Descrição: Adicionar proteção JWT aos endpoints GET/POST/PUT/DELETE
+   ```
 
-2. **Ou no GitHub Projects**: Crie um card que cria uma issue automaticamente
+2. **Vá a GitHub Actions** → **Autonomous Board Agents**
 
-3. **O workflow dispara AUTOMATICAMENTE**:
-   - ✅ Agent **Refinement** analisa e refina a issue
-   - ✅ Agent **Dev** gera código
-   - ✅ Agent **Test** gera testes
-   - ✅ **Testes** são executados
-   - ✅ **PR** é criado automaticamente
-   - ✅ Issue movida para **Done**
+3. **Clique "Run workflow"** e preencha:
+   - **Stage**: Comece com `refinament` (padrão)
+   - **Issue number**: O número da issue que você criou
 
-**Nenhum label necessário!** O workflow detecta automaticamente.
+4. **Acompanhe em tempo real** no GitHub Actions → Logs
 
-### **Opção 2: Disparo Manual (Workflow Dispatch)**
+---
 
-Se você quiser rodar um stage específico manualmente:
+## 📋 Etapas do Pipeline (Em Ordem)
 
-1. Vá para **GitHub Actions** → **Autonomous Board Agents**
+| # | Stage | O que faz | Condição para avançar |
+| --- | --- | --- | --- |
+| 1️⃣ | `refinament` | Analisa issue, refina escopo | ✅ Manual (workflow_dispatch) |
+| 2️⃣ | `dev` | Implementa código | ✅ Anterior concluído |
+| 3️⃣ | `dev-test` | Cria testes unitários | ✅ Anterior concluído |
+| 4️⃣ | `testing` | Executa testes + coverage | ✅ Anterior concluído |
+| 5️⃣ | `pr` | Cria PR, run CI final | ✅ Anterior concluído |
+
+---
+
+## 🔄 Como Funciona (Detalhe de Cada Etapa)
+
+### **1️⃣ Refinament**
+
+```yaml
+Entrada: Issue número + descrição
+├─ IA analisa escopo e requirements
+├─ Adiciona comentários e sugestões
+├─ Valida com padrões Iron Dome
+└─ Avança para: dev (Manual: próximo workflow_dispatch com stage=dev)
+```
+
+### **2️⃣ Dev**
+
+```yaml
+Entrada: Branch feat/issue-{number}
+├─ Implementa código seguindo padrões
+├─ Cria services, controllers, dtos
+├─ Respeita Domo de Ferro (DynamoDB, Audit, i18n, etc)
+├─ Git commit automático
+└─ Avança para: dev-test
+```
+
+### **3️⃣ Dev-Test**
+
+```yaml
+Entrada: Código implementado
+├─ Gera testes unitários (Jest)
+├─ Coverage ~80%
+├─ Git commit e push
+└─ Avança para: testing
+```
+
+### **4️⃣ Testing**
+
+```yaml
+Entrada: Testes implementados
+├─ Executa: npm run test:unit -- --coverage
+├─ Verifica thresholds
+├─ Se PASSOU → avança para: pr
+├─ Se FALHOU → volta para: dev (feedback)
+└─ Comenta no GitHub com resultado
+```
+
+### **5️⃣ PR**
+
+```yaml
+Entrada: Testes aprovados
+├─ Executa: npm run lint
+├─ Executa: npm run build
+├─ Executa: npm run test:integrated
+├─ Se PASSOU → cria PR + move para done
+├─ Se FALHOU → volta para: dev
+└─ Comenta resultado na issue
+```
+
+---
+
+## 🎮 Como Disparar Manualmente
+
+### **Via GitHub Actions UI:**
+
+1. Abra: https://github.com/rodrigorizandobr/iron-dome/actions/workflows/board-agents.yml
 2. Clique **"Run workflow"**
 3. Selecione:
-   - **Stage**: `refinament`, `dev`, `dev-test`, `testing`, ou `pr`
-   - **Issue number**: O número da issue
+   ```
+   Stage: [refinament | dev | dev-test | testing | pr]
+   Issue number: 123
+   ```
 4. Clique **"Run workflow"**
+5. Acompanhe os logs em tempo real
+
+### **Via GitHub CLI:**
+
+```bash
+gh workflow run board-agents.yml \
+  -f stage=refinament \
+  -f issue_number=123
+```
 
 ---
 
-## 📋 Labels (Agora Automáticos - Optional)
+## 📊 Labels (Auto-adicionados Após Cada Etapa)
 
-| Label | Etapa | Descrição | Auto-adicionado? |
-| --- | --- | --- | --- |
-| `refinament` | 1️⃣ | Análise e refinamento da issue | ✅ Sim (ao criar issue) |
-| `dev` | 2️⃣ | Desenvolvimento do código | ✅ Sim (após refinement) |
-| `dev-test` | 3️⃣ | Desenvolvimento dos testes | ✅ Sim (após dev) |
-| `testing` | 4️⃣ | Execução dos testes e feedback | ✅ Sim (após dev-test) |
-| `pr` | 5️⃣ | Criação do PR e CI | ✅ Sim (se testes passem) |
-| `done` | ✅ | Issue resolvida | ✅ Sim (ao criar PR) |
+Os labels são **adicionados automaticamente** conforme o pipeline avança:
+
+| Label | Quando adicionado |
+| --- | --- |
+| `dev` | Após refinament concluído |
+| `dev-test` | Após dev concluído |
+| `testing` | Após dev-test concluído |
+| `pr` | Após testing bem-sucedido |
+| `done` | Após PR criado com sucesso |
+
+> **Sem necessidade de adicionar labels manualmente!**
 
 ---
 
-## 🔄 Como Funciona (Fluxo Automático)
+## ⚠️ Troubleshooting
 
-### **Etapa 1: Você cria uma Issue**
+### **"All jobs skipped"**
+- ✅ Fixado! Removemos o `detect-stage` job que causava problemas
+- Use `workflow_dispatch` com inputs explícitos
 
-```
-👤 Cria issue no GitHub
-        ↓
-🤖 Workflow detecta `issues.opened`
-   - Inicia o agente Refinement automaticamente
-   - Adiciona label "refinament" (auto)
-```
+### **"Issue not found"**
+- Verifique o número da issue
+- Issue deve existir no repositório
 
-### **Etapa 2: Agent Refinement executa**
+### **"Branch not found" (nos stages depois de dev)**
+- O branch `feat/issue-{number}` precisa existir
+- Rode a etapa `dev` antes de `dev-test`
 
-```
-🤖 Agent Refinement:
-   - Lê título e descrição
-   - Refina escopo e acceptance criteria
-   - Comenta na issue com sugestões
-        ↓
-✅ Remove "refinament"
-✅ Adiciona "dev" (auto)
-```
+### **"Tests failed"**
+- Verifique os logs no GitHub Actions
+- O pipeline volta automaticamente para `dev` para conserto
 
-### **Etapa 3: Agent Dev executa**
+---
+
+## 🎯 Casos de Uso
+
+### **Caso 1: Nova Feature Completa**
 
 ```
-🤖 Agent Dev:
-   - Cria branch `feat/issue-{number}`
-   - Implementa código
-   - Segue padrões Iron Dome
-   - Commit automático
-        ↓
-✅ Adiciona "dev-test"
+User Action: Cria issue
+          ↓
+1. run workflow_dispatch (stage=refinament)
+          ↓
+2. run workflow_dispatch (stage=dev)
+          ↓
+3. run workflow_dispatch (stage=dev-test)
+          ↓
+4. run workflow_dispatch (stage=testing)
+          ↓
+5. run workflow_dispatch (stage=pr)
+          ↓
+✅ PR criado e pronto para merge!
 ```
 
-### **Etapa 4: Agent Test executa**
+### **Caso 2: Testes Falharam**
 
 ```
-🤖 Agent Test:
-   - Cria testes unitários
+4. Testing executou → FALHOU ❌
+          ↓
+Label "dev" adicionado automaticamente
+          ↓
+User: run workflow_dispatch (stage=dev) novamente
+          ↓
+Refaz implementação
+          ↓
+...cycle continua até PASSAR
+```
+
+---
+
+## 🔧 Variáveis Esperadas
+
+Na conta do GitHub, configure (se usar auto-triggers):
+
+```yaml
+PROJECT_NUMBER: [seu github projects número, ex: 42]
+```
+
+Para secrets (agentes que usam APIs):
+
+```yaml
+COPILOT_TOKEN: [seu token da IA/Copilot]
+```
+
+> Note: Atualmente usamos `workflow_dispatch`, então essas variáveis são opcionais.
+
+---
+
+## 📝 Próximos Passos
+
+- [ ] Integrar realmente com Claude/Copilot API (scripts/agents/*.ts)
+- [ ] Testar pipeline completo com issue real
+- [ ] Validar que todos os agents rodando geram código correto
+- [ ] Adicionar hooks de feedback em cada etapa
+- [ ] Dashboard para acompanhar múltiplos boards simultâneos
    - Target: 80%+ coverage
    - Commit automático
         ↓
