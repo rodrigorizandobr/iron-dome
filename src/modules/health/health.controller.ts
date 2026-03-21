@@ -41,11 +41,9 @@ export class HealthController {
     const dynamoOk = await this.dynamoDBProvider.checkHealth();
 
     return {
-      // eslint-disable-next-line i18next/no-literal-string
       status: dynamoOk ? 'ready' : 'degraded',
       uptime: process.uptime().toFixed(2),
       dependencies: {
-        // eslint-disable-next-line i18next/no-literal-string
         dynamodb: { status: dynamoOk ? 'up' : 'down' },
       },
     };

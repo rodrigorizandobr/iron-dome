@@ -8,7 +8,6 @@ import { AuthModule } from '../../common/guards/auth.module';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
 
-/* eslint-disable i18next/no-literal-string */
 const ORDERS_PATH = '/v1/orders';
 const TENANT_ID = 'tenant-int';
 const PRODUCT_NAME = 'Widget';
@@ -16,16 +15,15 @@ const USER_SUB = 'user-1';
 const AUTH_HEADER = 'Authorization';
 const TENANT_HEADER = 'x-tenant-id';
 const ORDER_ID = 'mock-order-id';
-/* eslint-enable i18next/no-literal-string */
 
 // Mock DynamoDB responses (no LocalStack needed)
 const mockDynamoDBProvider = {
   putItem: jest.fn().mockResolvedValue({}),
   getItem: jest
     .fn()
-    .mockImplementation((pk, sk) => {
+    .mockImplementation((_pk: unknown, sk: unknown) => {
       // Return 404-like response for nonexistent IDs
-      if (sk?.includes('nonexistent')) {
+      if (typeof sk === 'string' && sk.includes('nonexistent')) {
         return Promise.resolve(null);
       }
       // Return mock order for valid IDs
@@ -99,7 +97,6 @@ describe('OrdersController (integration)', () => {
         .expect(201);
 
       const body = res.body as OrderResponseDto;
-      // eslint-disable-next-line i18next/no-literal-string
       expect(res.body).toHaveProperty('id');
       expect(body.productName).toBe(PRODUCT_NAME);
       expect(body.tenantId).toBe(TENANT_ID);
@@ -135,7 +132,6 @@ describe('OrdersController (integration)', () => {
   describe('GET /v1/orders/:id', () => {
     it('should return 404 for nonexistent order', async () => {
       await request(app.getHttpServer())
-        // eslint-disable-next-line i18next/no-literal-string
         .get(`${ORDERS_PATH}/nonexistent-id`)
         .set(AUTH_HEADER, `Bearer ${token}`)
         .set(TENANT_HEADER, TENANT_ID)
@@ -146,7 +142,6 @@ describe('OrdersController (integration)', () => {
   describe('DELETE /v1/orders/:id (soft-delete)', () => {
     it('should reject unauthenticated requests', async () => {
       await request(app.getHttpServer())
-        // eslint-disable-next-line i18next/no-literal-string
         .delete(`${ORDERS_PATH}/some-id`)
         .expect(401);
     });

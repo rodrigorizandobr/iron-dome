@@ -1,13 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-/* eslint-disable i18next/no-literal-string */
 const ENV_AWS_REGION = 'AWS_REGION';
 const ENV_AWS_ENDPOINT = 'AWS_ENDPOINT';
 const ENV_AWS_ACCESS_KEY_ID = 'AWS_ACCESS_KEY_ID';
 const ENV_AWS_SECRET_ACCESS_KEY = 'AWS_SECRET_ACCESS_KEY';
 const DUMMY_CREDENTIAL = 'dummy';
-/* eslint-enable i18next/no-literal-string */
 
 export {
   ENV_AWS_REGION,

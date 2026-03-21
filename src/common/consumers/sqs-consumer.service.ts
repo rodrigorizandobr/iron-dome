@@ -28,7 +28,6 @@ export class SqsConsumerService extends BaseProvider implements OnModuleInit {
     const queueName = this.getResourceName('sqs', 'order-processor');
     const { endpoint, region } = this.getAwsConfig();
     const accountId = this.configService.get<string>('AWS_ACCOUNT_ID', '000000000000');
-    // eslint-disable-next-line i18next/no-literal-string
     this.queueUrl = `${endpoint}/${accountId}/${queueName}`;
     this.logger.log(`Queue URL: ${this.queueUrl}, Region: ${region}`);
   }

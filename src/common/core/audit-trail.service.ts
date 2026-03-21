@@ -43,9 +43,7 @@ export class AuditTrailService {
     const timestamp = new Date().toISOString();
 
     const entry: IAuditEntry = {
-      // eslint-disable-next-line i18next/no-literal-string
       PK: `TENANT#${tenantId}#AUDIT`,
-      // eslint-disable-next-line i18next/no-literal-string
       SK: `AUDIT#${timestamp}#${resourceType}#${resourceId}`,
       entityType: 'AUDIT',
       action,

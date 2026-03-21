@@ -26,7 +26,8 @@
     "test:e2e": "playwright test",
     "prepare": "husky",
     "release": "semantic-release",
-    "seed": "npx ts-node scripts/seed.ts"
+    "seed": "npx ts-node scripts/seed.ts",
+    "ci": "bash scripts/ci-local.sh"
   },
   "keywords": [],
   "devDependencies": {
