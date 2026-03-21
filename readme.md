@@ -32,6 +32,7 @@
 - [Scripts Disponíveis](#scripts-disponíveis)
 - [Swagger](#swagger)
 - [Tech Stack](#tech-stack)
+- [Recursos Legados (Deployd)](#recursos-legados-deployd)
 
 ---
 
@@ -69,6 +70,7 @@ APP_DOMAIN=fintech
 APP_SUBDOMAIN=core
 JWT_SECRET=dev-secret-change-me
 JWT_EXPIRES_IN=1h
+OPENAI_API_KEY=sk-your-key-here
 SQS_CONSUMER_ENABLED=false
 AWS_ACCOUNT_ID=000000000000
 PORT=3000
