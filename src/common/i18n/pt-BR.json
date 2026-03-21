@@ -1,0 +1,26 @@
+{
+  "WELCOME": "Bem-vindo ao API AI",
+  "ERROR_INTERNAL": "Erro interno do servidor",
+  "AUTH_FAILED": "Falha na autenticação",
+  "errors": {
+    "not_found": "{model} com ID {id} não encontrado",
+    "create_failed": "Erro ao criar {model}",
+    "update_failed": "Erro ao atualizar {model}",
+    "delete_failed": "Erro ao remover {model}",
+    "tenant_required": "Isolamento de tenant requer tenantId",
+    "validation_failed": "Validação falhou para {field}",
+    "unauthorized": "Autenticação necessária",
+    "forbidden": "Acesso negado para este recurso",
+    "rate_limited": "Muitas requisições, tente novamente mais tarde",
+    "service_unavailable": "Serviço temporariamente indisponível"
+  },
+  "ai": {
+    "system_facilitator_prompt": "Você é um assistente de IA especializado em análise de conteúdo.",
+    "analyze_content_prefix": "Analise o seguinte conteúdo:"
+  },
+  "orders": {
+    "created": "Pedido {id} criado com sucesso",
+    "updated": "Pedido {id} atualizado com sucesso",
+    "deleted": "Pedido {id} removido com sucesso"
+  }
+}

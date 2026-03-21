@@ -1,0 +1,61 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  security-audit:
+    name: Security Gate (Infrastructure)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Production Security Audit (Strict)
+        run: npm audit --audit-level=high --only=prod
+      - name: Aesthetics Audit (Prettier)
+        run: npm run format -- --check
+      - name: Development Tooling Audit (Informative)
+        run: npm audit --audit-level=high --only=dev || true
+
+  quality-assurance:
+    name: Logic Gate (Code Quality)
+    needs: [security-audit]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Logic auditing (ESLint)
+        run: npm run lint
+      - name: Production Build
+        run: npm run build
+      - name: Unit Tests & Coverage (>85%)
+        run: npm run test:unit -- --coverage
+      - name: Integrated Tests & Coverage (>80%)
+        run: npm run test:integrated -- --coverage
+
+  # Model for Deployment step
+  deploy:
+    needs: [security-audit, quality-assurance]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Production
+        run: echo "Standard deployment flow would go here (e.g., AWS ECS, Lambda, Vercel)"

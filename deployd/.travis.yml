@@ -1,0 +1,15 @@
+language: node_js
+cache:
+  directories:
+    - node_modules
+sudo: false
+services: mongodb
+node_js:
+  - "11"
+  - "10"
+  - "9"
+  - "8"
+  - "7"
+  - "6"
+  - "5"
+  - "4"

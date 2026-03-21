@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.env
+.DS_Store
+storage/
+*.log
+coverage/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# LocalStack
+infra/localstack/cache/
+infra/localstack/logs/
+infra/localstack/tmp/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+

@@ -1,0 +1,9 @@
+node_modules
+dist
+storage
+coverage
+package-lock.json
+public
+.husky
+# removed antigravity reference
+

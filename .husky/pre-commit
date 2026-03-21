@@ -1,0 +1,2 @@
+# Optional: Run lint-staged for fast commits
+npx lint-staged
