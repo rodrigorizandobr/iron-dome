@@ -1,6 +1,23 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+/* eslint-disable i18next/no-literal-string */
+const ENV_AWS_REGION = 'AWS_REGION';
+const ENV_AWS_ENDPOINT = 'AWS_ENDPOINT';
+const ENV_AWS_ACCESS_KEY_ID = 'AWS_ACCESS_KEY_ID';
+const ENV_AWS_SECRET_ACCESS_KEY = 'AWS_SECRET_ACCESS_KEY';
+const DUMMY_CREDENTIAL = 'dummy';
+/* eslint-enable i18next/no-literal-string */
+
+export { ENV_AWS_REGION, ENV_AWS_ENDPOINT, ENV_AWS_ACCESS_KEY_ID, ENV_AWS_SECRET_ACCESS_KEY, DUMMY_CREDENTIAL };
+
+/** Standard AWS client configuration shape. */
+export interface IAwsClientConfig {
+  region: string;
+  endpoint: string;
+  credentials: { accessKeyId: string; secretAccessKey: string };
+}
+
 /**
  * Valid Environments for the platform.
  */
@@ -36,20 +53,26 @@ export abstract class BaseProvider {
     this.logger = new Logger(providerName);
   }
 
+  /** Returns standard AWS client config from environment variables. */
+  protected getAwsConfig(): IAwsClientConfig {
+    return {
+      region: this.configService.get<string>(ENV_AWS_REGION, 'us-east-1'),
+      endpoint: this.configService.get<string>(ENV_AWS_ENDPOINT, 'http://localhost:4566'),
+      credentials: {
+        accessKeyId: this.configService.get<string>(ENV_AWS_ACCESS_KEY_ID) || DUMMY_CREDENTIAL,
+        secretAccessKey: this.configService.get<string>(ENV_AWS_SECRET_ACCESS_KEY) || DUMMY_CREDENTIAL,
+      },
+    };
+  }
+
   /**
    * Generates a corporate standard resource name.
-   * Pattern: [AMBIENTE]-[DOMÍNIO]-[SUBDOMÍNIO]-[TIPO_RECURSO]-[NOME_FUNCIONAL]
-   * 
-   * @param resourceType The type of AWS resource (e.g., 'dynamodb', 's3', 'sqs', 'sns', 'lambda')
-   * @param functionalName The specific name/purpose of the resource (e.g., 'main', 'attachments', 'orders-handler')
-   * @returns The formatted resource name string.
+   * Pattern: [ENV]-[DOMAIN]-[SUBDOMAIN]-[TYPE]-[FUNCTIONAL]
    */
   public getResourceName(resourceType: string, functionalName: string): string {
     const env = this.configService.get<AppEnvironment>('NODE_ENV', AppEnvironment.DEVELOPMENT);
     const domain = this.configService.get<string>('APP_DOMAIN', 'fintech');
     const subdomain = this.configService.get<string>('APP_SUBDOMAIN', 'core');
-
-    // Enforces the standard pattern: [ENV]-[DOMAIN]-[SUBDOMAIN]-[TYPE]-[FUNCTIONAL]
     return `${env}-${domain}-${subdomain}-${resourceType}-${functionalName}`.toLowerCase();
   }
 

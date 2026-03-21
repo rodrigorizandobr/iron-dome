@@ -17,6 +17,7 @@ async function bootstrap() {
   const origins = configService.get<string>('CORS_ORIGINS', '*');
   app.enableCors({
     origin: origins === '*' ? '*' : origins.split(','),
+    // eslint-disable-next-line i18next/no-literal-string
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: origins !== '*',
   });

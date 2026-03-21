@@ -3,14 +3,14 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Public } from '../../common/guards/public.decorator';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
 
-interface HealthDependency {
+interface IHealthDependency {
   status: string;
 }
 
-interface ReadinessResponse {
+interface IReadinessResponse {
   status: string;
   uptime: string;
-  dependencies: Record<string, HealthDependency>;
+  dependencies: Record<string, IHealthDependency>;
 }
 
 /**
@@ -34,15 +34,15 @@ export class HealthController {
   @ApiOperation({ summary: 'Readiness check with dependency verification' })
   @ApiResponse({ status: HttpStatus.OK, description: 'All dependencies healthy' })
   @ApiResponse({ status: HttpStatus.SERVICE_UNAVAILABLE, description: 'One or more dependencies unhealthy' })
-  async getReady(): Promise<ReadinessResponse> {
+  async getReady(): Promise<IReadinessResponse> {
     const dynamoOk = await this.dynamoDBProvider.checkHealth();
 
-    const allHealthy = dynamoOk;
-
     return {
-      status: allHealthy ? 'ready' : 'degraded',
+      // eslint-disable-next-line i18next/no-literal-string
+      status: dynamoOk ? 'ready' : 'degraded',
       uptime: process.uptime().toFixed(2),
       dependencies: {
+        // eslint-disable-next-line i18next/no-literal-string
         dynamodb: { status: dynamoOk ? 'up' : 'down' },
       },
     };

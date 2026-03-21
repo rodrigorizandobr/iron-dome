@@ -20,11 +20,18 @@ export class OrderEventPublisher {
   private readonly logger = new Logger(OrderEventPublisher.name);
   private readonly topicArn: string;
 
+  /* eslint-disable i18next/no-literal-string */
+  private static readonly EVENT_CREATED = 'order.created';
+  private static readonly EVENT_UPDATED = 'order.updated';
+  private static readonly EVENT_DELETED = 'order.deleted';
+  private static readonly TOPIC_NAME = 'order-events';
+  /* eslint-enable i18next/no-literal-string */
+
   constructor(
     private readonly sns: SNSProvider,
     private readonly configService: ConfigService,
   ) {
-    const topicName = this.sns.getTopicName('order-events');
+    const topicName = this.sns.getTopicName(OrderEventPublisher.TOPIC_NAME);
     const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
     const accountId = this.configService.get<string>('AWS_ACCOUNT_ID', '000000000000');
     // eslint-disable-next-line i18next/no-literal-string
@@ -33,17 +40,17 @@ export class OrderEventPublisher {
 
   /** Publish an order.created event. */
   async publishCreated(orderId: string, tenantId: string, data?: Record<string, unknown>) {
-    return this.publishEvent('order.created', orderId, tenantId, data);
+    return this.publishEvent(OrderEventPublisher.EVENT_CREATED, orderId, tenantId, data);
   }
 
   /** Publish an order.updated event. */
   async publishUpdated(orderId: string, tenantId: string, data?: Record<string, unknown>) {
-    return this.publishEvent('order.updated', orderId, tenantId, data);
+    return this.publishEvent(OrderEventPublisher.EVENT_UPDATED, orderId, tenantId, data);
   }
 
   /** Publish an order.deleted event. */
   async publishDeleted(orderId: string, tenantId: string) {
-    return this.publishEvent('order.deleted', orderId, tenantId);
+    return this.publishEvent(OrderEventPublisher.EVENT_DELETED, orderId, tenantId);
   }
 
   /** Generic event publisher. */
