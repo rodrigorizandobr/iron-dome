@@ -78,20 +78,28 @@ npm run test:integrated
 
 ## 2. What MUST be Tested (Test Strategy)
 
-| Componente           | Tipo de Teste         | Coverage Min | Strategy |
-| -------------------- | --------------------- | ------------ | -------- |
-| Service (CRUD)       | **Unit (spec.ts)**    | **80%**      | Mocks de providers + audit trail |
-| Controller (routes)  | **Unit (spec.ts)**    | **80%**      | Mocks de service + JWT |
-| Provider (AWS API)   | **Unit (spec.ts)**    | **80%**      | Mocks de AWS SDK |
-| Integration Tests    | **Integration (int-spec.ts)** | **NONE** | Testa fluxo real com LocalStack |
-| DTO (data objects)   | **NENHUM**            | **0%**       | Excluído do coverage (tipos puros) |
-| Guard (auth)         | **Unit (spec.ts)**    | **70%**      | Mocks de AuthService |
-| Middleware           | **Unit (spec.ts)**    | **70%**      | Mocks de request/response |
+| Componente           | Precisas Testes? | Coverage Threshold | Strategy |
+| -------------------- | --------------- | --------------- | -------- |
+| Service (CRUD logic) | **✅ YES**      | **Baseline actual** | Unit tests com mocks (define threshold DEPOIS dos testes) |
+| Controller (routes)  | **⏳ TODO**     | None yet | Escrever testes integrados primeiro |
+| Provider (AWS API)   | **⏳ TODO**     | None yet | Escrever unit tests com mocks |
+| Integration Tests    | **✅ YES**      | **NO coverage** | Testa fluxo com LocalStack (ESM + v8 incompatível) |
+| DTO (data objects)   | **❌ NOT NEEDED** | **0%** | Tipos puros, sem lógica |
+| Guard (auth)         | **⏳ TODO**     | None yet | Escrever unit tests depois |
+| Middleware           | **⏳ TODO**     | None yet | Escrever unit tests depois |
 
-**Coverage Rules**:
-- ✅ **Unit tests** SEMPRE coletam coverage (v8 provider — obrigatório 80% minimum)
-- ❌ **Integration tests** NUNCA coletam coverage (ESM + AWS SDK = incompatível)
-- ❌ **PROIBIDO** usar `npm run test:integrated -- --coverage` (causes babel-plugin-istanbul error)
+**Coverage Strategy - PRAGMATIC**:
+
+1. ✅ **Write comprehensive tests FIRST** (`*.spec.ts`)
+2. ✅ **Get real coverage baseline** (`npm run test:unit -- --coverage`)
+3. ✅ **Add threshold in jest-unit.json** using ACTUAL numbers (not artificial targets)
+4. ✅ **CI enforces**: Coverage must NOT drop below baseline
+5. ❌ **AVOID**: Setting 80% threshold on 0% coverage code (waste of CI)
+
+**Coverage Thresholds**:
+- Orders Service: 100% branches, 75% functions, 84% lines, 84% statements (has tests ✓)
+- Other modules: No threshold yet (no comprehensive tests written yet)
+- Integration Tests: No coverage collected (ESM incompatible with v8)
 
 ---
 

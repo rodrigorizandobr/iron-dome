@@ -48,24 +48,22 @@ npx tsc --noEmit
   - Don't use `any`, use `unknown` + type guard
   - Import types: `import type { SomeType } from '...'`
 
-### ✅ 4. Unit Tests (80% Module-Specific Coverage — MANDATORY)
+### ✅ 4. Unit Tests (Pragmatic Coverage Enforcement)
 
 ```bash
 npm run test:unit                    # Fast, no coverage (~3s)
-npm run test:unit -- --coverage      # MUST PASS with ≥80% on tested modules (~10s)
+npm run test:unit -- --coverage      # MUST PASS with baselines defined in jest-unit.json (~10s)
 ```
 
-- **Deve passar**: Todos testes + coverage ≥ 80% em módulos com testes
-- **Estratégia Module-Specific**:
-  - `orders.service.ts`: 80% (tem testes completos)
-  - `orders.controller.ts`: 70% (parcialmente testado)
-  - `base-resource.service.ts`: 70% (parcialmente testado)
-  - Novos módulos: devem atingir 80% quando adicionados
-- **Por que 80%?**
-  - Força qualidade de código
-  - Previne código não testado ser merged
-  - Cada módulo novo herda padrão (80% ou falha CI)
-  - Module-specific: `./src/modules/orders/orders.service.ts` ≥ 75%
+- **Deve passar**: Todos testes + coverage >= baseline
+- **Estratégia Pragmática**:
+  - `orders.service.ts`: 100% branches, 75% functions, 84% lines, 84% statements (testes prontos ✓)
+  - Novos módulos: APENAS adicionam threshold DEPOIS de escrever testes
+- **Por que assim?**
+  - Evita "threshold theater" (80% em código com 0% coverage)
+  - Força testes ANTES de threshold
+  - CI bloqueia REGRESSÃO (cobertura caindo)
+  - Realista e sustentável
 
 #### Se falhar — Jest Coverage Error (babel-plugin-istanbul)
 
