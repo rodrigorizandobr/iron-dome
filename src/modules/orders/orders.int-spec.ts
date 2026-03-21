@@ -6,6 +6,7 @@ import request from 'supertest';
 import { OrdersModule } from './orders.module';
 import { AuthModule } from '../../common/guards/auth.module';
 import { OrderResponseDto } from './dto/order-response.dto';
+import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
 
 /* eslint-disable i18next/no-literal-string */
 const ORDERS_PATH = '/v1/orders';
@@ -14,7 +15,46 @@ const PRODUCT_NAME = 'Widget';
 const USER_SUB = 'user-1';
 const AUTH_HEADER = 'Authorization';
 const TENANT_HEADER = 'x-tenant-id';
+const ORDER_ID = 'mock-order-id';
 /* eslint-enable i18next/no-literal-string */
+
+// Mock DynamoDB responses (no LocalStack needed)
+const mockDynamoDBProvider = {
+  putItem: jest.fn().mockResolvedValue({}),
+  getItem: jest
+    .fn()
+    .mockImplementation((pk, sk) => {
+      // Return 404-like response for nonexistent IDs
+      if (sk?.includes('nonexistent')) {
+        return Promise.resolve(null);
+      }
+      // Return mock order for valid IDs
+      return Promise.resolve({
+        id: ORDER_ID,
+        tenantId: TENANT_ID,
+        productName: PRODUCT_NAME,
+        amount: 1000,
+        deleted: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }),
+  query: jest.fn().mockResolvedValue({
+    items: [
+      {
+        id: ORDER_ID,
+        tenantId: TENANT_ID,
+        productName: PRODUCT_NAME,
+        amount: 1000,
+        deleted: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+    cursor: undefined,
+  }),
+  updateItem: jest.fn().mockResolvedValue({}),
+};
 
 describe('OrdersController (integration)', () => {
   let app: INestApplication;
@@ -24,7 +64,10 @@ describe('OrdersController (integration)', () => {
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, OrdersModule],
-    }).compile();
+    })
+      .overrideProvider(DynamoDBProvider)
+      .useValue(mockDynamoDBProvider)
+      .compile();
 
     app = module.createNestApplication();
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
