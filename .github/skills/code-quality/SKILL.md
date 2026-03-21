@@ -54,6 +54,7 @@ description: 'Skill para garantir qualidade de código corporativa. Cobre limite
 5. CI bloqueia se cobertura CAIR abaixo da baseline
 
 **NUNCA faça**:
+
 - ❌ Adicione threshold de 80% em código com 0% coverage
 - ❌ Enforce 70% quando o código está em 58% (impossível passar)
 - ❌ Use thresholds hypothesis ("deveria ter") vs realidade ("tem")

@@ -78,15 +78,15 @@ npm run test:integrated
 
 ## 2. What MUST be Tested (Test Strategy)
 
-| Componente           | Precisas Testes? | Coverage Threshold | Strategy |
-| -------------------- | --------------- | --------------- | -------- |
-| Service (CRUD logic) | **✅ YES**      | **Baseline actual** | Unit tests com mocks (define threshold DEPOIS dos testes) |
-| Controller (routes)  | **⏳ TODO**     | None yet | Escrever testes integrados primeiro |
-| Provider (AWS API)   | **⏳ TODO**     | None yet | Escrever unit tests com mocks |
-| Integration Tests    | **✅ YES**      | **NO coverage** | Testa fluxo com LocalStack (ESM + v8 incompatível) |
-| DTO (data objects)   | **❌ NOT NEEDED** | **0%** | Tipos puros, sem lógica |
-| Guard (auth)         | **⏳ TODO**     | None yet | Escrever unit tests depois |
-| Middleware           | **⏳ TODO**     | None yet | Escrever unit tests depois |
+| Componente           | Precisas Testes?  | Coverage Threshold  | Strategy                                                  |
+| -------------------- | ----------------- | ------------------- | --------------------------------------------------------- |
+| Service (CRUD logic) | **✅ YES**        | **Baseline actual** | Unit tests com mocks (define threshold DEPOIS dos testes) |
+| Controller (routes)  | **⏳ TODO**       | None yet            | Escrever testes integrados primeiro                       |
+| Provider (AWS API)   | **⏳ TODO**       | None yet            | Escrever unit tests com mocks                             |
+| Integration Tests    | **✅ YES**        | **NO coverage**     | Testa fluxo com LocalStack (ESM + v8 incompatível)        |
+| DTO (data objects)   | **❌ NOT NEEDED** | **0%**              | Tipos puros, sem lógica                                   |
+| Guard (auth)         | **⏳ TODO**       | None yet            | Escrever unit tests depois                                |
+| Middleware           | **⏳ TODO**       | None yet            | Escrever unit tests depois                                |
 
 **Coverage Strategy - PRAGMATIC**:
 
@@ -97,6 +97,7 @@ npm run test:integrated
 5. ❌ **AVOID**: Setting 80% threshold on 0% coverage code (waste of CI)
 
 **Coverage Thresholds**:
+
 - Orders Service: 100% branches, 75% functions, 84% lines, 84% statements (has tests ✓)
 - Other modules: No threshold yet (no comprehensive tests written yet)
 - Integration Tests: No coverage collected (ESM incompatible with v8)
