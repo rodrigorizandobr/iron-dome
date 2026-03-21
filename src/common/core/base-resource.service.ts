@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
 import { I18nService } from './i18n.service';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
@@ -30,11 +31,11 @@ import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
  * }
  *
  * // 3. Use it in your controller
- * const users = await this.usersService.findAll('tenant-abc');
- * const user  = await this.usersService.findOne('tenant-abc', '12345');
- * const created = await this.usersService.create({ tenantId: 'tenant-abc', name: 'Rodrigo', email: 'r@ci9.com' });
- * const updated = await this.usersService.update('tenant-abc', '12345', { name: 'Rodrigo S.' });
- * const removed = await this.usersService.remove('tenant-abc', '12345'); // Soft-delete
+ * const users = await this.usersService.findAll(tenantId);
+ * const user  = await this.usersService.findOne(tenantId, userId);
+ * const created = await this.usersService.create({ tenantId, name: 'Rodrigo', email: 'r@ci9.com' });
+ * const updated = await this.usersService.update(tenantId, userId, { name: 'Rodrigo S.' });
+ * const removed = await this.usersService.remove(tenantId, userId); // Soft-delete
  * ```
  *
  * ## DynamoDB Key Design (Single Table):
@@ -63,7 +64,7 @@ export interface IPaginatedResult<T> {
   cursor?: string;
 }
 
-type DynamoAttributeValue = import('@aws-sdk/client-dynamodb').AttributeValue;
+type DynamoAttributeValue = AttributeValue;
 
 @Injectable()
 export abstract class BaseResourceService<T, CreateDto, UpdateDto>

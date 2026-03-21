@@ -16,6 +16,7 @@ interface ITenantRequest extends Request {
 }
 
 const MSG_UNAUTHORIZED = 'Unauthorized';
+const MSG_ORDER_NOT_FOUND = 'Order not found';
 
 /**
  * Orders REST Controller.
@@ -54,7 +55,7 @@ export class OrdersController {
   @Version('1')
   @ApiOperation({ summary: 'Get order by ID' })
   @ApiResponse({ status: 200, description: 'Order found', type: OrderResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found' })
+  @ApiResponse({ status: 404, description: MSG_ORDER_NOT_FOUND })
   @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async findOne(@Req() req: ITenantRequest, @Param('id') id: string) {
     return this.ordersService.findOne(req.tenantId, id);
@@ -65,7 +66,7 @@ export class OrdersController {
   @Version('1')
   @ApiOperation({ summary: 'Update order' })
   @ApiResponse({ status: 200, description: 'Order updated', type: OrderResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found' })
+  @ApiResponse({ status: 404, description: MSG_ORDER_NOT_FOUND })
   @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async update(
     @Req() req: ITenantRequest,
@@ -80,7 +81,7 @@ export class OrdersController {
   @Version('1')
   @ApiOperation({ summary: 'Soft-delete order' })
   @ApiResponse({ status: 200, description: 'Order soft-deleted', type: OrderResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found' })
+  @ApiResponse({ status: 404, description: MSG_ORDER_NOT_FOUND })
   @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async remove(@Req() req: ITenantRequest, @Param('id') id: string) {
     return this.ordersService.remove(req.tenantId, id);

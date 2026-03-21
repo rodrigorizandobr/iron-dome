@@ -1,13 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { Express } from 'express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ObfuscationService } from './common/core/obfuscation.service';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const serverlessExpress = require('@codegenie/serverless-express');
+type LambdaHandler = (event: unknown, context: unknown, callback: unknown) => Promise<unknown>;
+type ServerlessExpressFactory = (options: { app: Express }) => LambdaHandler;
 
-let cachedServer: ReturnType<typeof serverlessExpress>;
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+const serverlessExpress: ServerlessExpressFactory = require('@codegenie/serverless-express');
+
+let cachedServer: LambdaHandler;
 
 /**
  * Bootstraps the NestJS app as an AWS Lambda handler.
@@ -24,12 +28,12 @@ async function bootstrap() {
 
   await app.init();
 
-  const expressApp = app.getHttpAdapter().getInstance();
+  const expressApp = app.getHttpAdapter().getInstance() as Express;
   return serverlessExpress({ app: expressApp });
 }
 
 /** AWS Lambda handler entry point. */
-export const handler = async (event: unknown, context: unknown, callback: unknown) => {
+export const handler: LambdaHandler = async (event, context, callback) => {
   if (!cachedServer) {
     cachedServer = await bootstrap();
   }

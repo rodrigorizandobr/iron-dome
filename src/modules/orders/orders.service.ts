@@ -26,6 +26,8 @@ export interface IOrder {
  * Inherits create, findAll, findOne, update, remove from BaseResourceService.
  * Publishes SNS events on create, update, and remove.
  */
+const ORDER_ENTITY = 'ORDER';
+
 @Injectable()
 export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, UpdateOrderDto> {
   constructor(
@@ -34,7 +36,7 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
     private readonly eventPublisher: OrderEventPublisher,
     private readonly audit: AuditTrailService,
   ) {
-    super(dynamo, 'ORDER', i18n);
+    super(dynamo, ORDER_ENTITY, i18n);
   }
 
   /** Create an order and publish order.created event. */
@@ -44,7 +46,7 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
       productName: result.productName,
       amount: result.amount,
     });
-    await this.audit.record(result.tenantId, 'CREATE', 'ORDER', result.id);
+    await this.audit.record(result.tenantId, 'CREATE', ORDER_ENTITY, result.id);
     return result;
   }
 
@@ -52,7 +54,7 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
   async update(tenantId: string, id: string, data: UpdateOrderDto): Promise<IOrder> {
     const result = await super.update(tenantId, id, data);
     await this.eventPublisher.publishUpdated(result.id, result.tenantId);
-    await this.audit.record(tenantId, 'UPDATE', 'ORDER', id, undefined, data as unknown as Record<string, unknown>);
+    await this.audit.record(tenantId, 'UPDATE', ORDER_ENTITY, id, undefined, data as unknown as Record<string, unknown>);
     return result;
   }
 
@@ -60,7 +62,7 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
   async remove(tenantId: string, id: string): Promise<IOrder> {
     const result = await super.remove(tenantId, id);
     await this.eventPublisher.publishDeleted(result.id, result.tenantId);
-    await this.audit.record(tenantId, 'DELETE', 'ORDER', id);
+    await this.audit.record(tenantId, 'DELETE', ORDER_ENTITY, id);
     return result;
   }
 }
