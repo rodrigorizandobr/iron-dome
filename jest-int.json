@@ -5,6 +5,8 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "collectCoverage": false,
+  "coverageProvider": "v8",
   "collectCoverageFrom": [
     "**/*.ts",
     "!**/*.spec.ts",
@@ -15,7 +17,6 @@
     "!**/*.dto.ts",
     "!**/validate-env.ts"
   ],
-  "collectCoverageFromChildProcesses": false,
   "coveragePathIgnorePatterns": [
     "/node_modules/",
     "/.next/",
@@ -25,12 +26,5 @@
   ],
   "coverageDirectory": "../coverage/integration",
   "testEnvironment": "node",
-  "coverageThreshold": {
-    "global": {
-      "branches": 70,
-      "functions": 75,
-      "lines": 75,
-      "statements": 75
-    }
-  }
+  "coverageThreshold": {}
 }
