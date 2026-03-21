@@ -87,16 +87,16 @@ feat(orders): implement order CRUD with soft-delete
 
 ## If CI Fails on GitHub Actions
 
-| Error | Fix |
-|-------|-----|
-| `Unsafe member access .field on 'any'` | Cast: `obj as IType` |
-| `disallow literal string` | Use `const` or `// eslint-disable-next-line` |
-| `duplicate string 'pending' 3x` | `const PENDING = 'pending'` |
-| `File > 200 lines` | Split into 2 modules |
-| `Cognitive complexity > 15` | Refactor into smaller functions |
-| `coverage < 85%` | Add more unit tests |
-| `coverage < 80%` | Add more integration tests |
-| `API key found` | Move to `.env` or Secrets Manager |
+| Error                                  | Fix                                          |
+| -------------------------------------- | -------------------------------------------- |
+| `Unsafe member access .field on 'any'` | Cast: `obj as IType`                         |
+| `disallow literal string`              | Use `const` or `// eslint-disable-next-line` |
+| `duplicate string 'pending' 3x`        | `const PENDING = 'pending'`                  |
+| `File > 200 lines`                     | Split into 2 modules                         |
+| `Cognitive complexity > 15`            | Refactor into smaller functions              |
+| `coverage < 85%`                       | Add more unit tests                          |
+| `coverage < 80%`                       | Add more integration tests                   |
+| `API key found`                        | Move to `.env` or Secrets Manager            |
 
 ---
 
@@ -111,4 +111,3 @@ feat(orders): implement order CRUD with soft-delete
 ---
 
 **Remember**: Local validation PREVENTS CI failures. Always run the 6 gates before pushing.
-

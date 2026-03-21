@@ -23,6 +23,7 @@ Todo agente de desenvolvimento (dev, dev-test, testing, pr) deve seguir este wor
 Arquivo: `.github/agents/api-guardian.agent.md`
 
 **Validar:**
+
 - ✅ Database: DynamoDB não relacional?
 - ✅ Auth: JWT + multi-tenant?
 - ✅ Events: SNS/SQS para CUD?
@@ -35,18 +36,19 @@ Arquivo: `.github/agents/api-guardian.agent.md`
 
 Baseado no escopo da task, revisar skills:
 
-| Task Type | Skills a Ler |
-|-----------|--------------|
-| Novo módulo CRUD | `new-module`, `dynamodb-single-table`, `multi-tenancy` |
-| Novo provider AWS | `provider-architecture`, `aws-naming` |
-| Security/sensitive dados | `data-obfuscation` |
-| Message/logging | `i18n` |
-| Soft-delete requirement | `soft-delete` |
-| Terraform resource | `terraform-iac` |
+| Task Type                | Skills a Ler                                           |
+| ------------------------ | ------------------------------------------------------ |
+| Novo módulo CRUD         | `new-module`, `dynamodb-single-table`, `multi-tenancy` |
+| Novo provider AWS        | `provider-architecture`, `aws-naming`                  |
+| Security/sensitive dados | `data-obfuscation`                                     |
+| Message/logging          | `i18n`                                                 |
+| Soft-delete requirement  | `soft-delete`                                          |
+| Terraform resource       | `terraform-iac`                                        |
 
 ### 1.4 Criar Plano de Arquitetura
 
 Documento o design:
+
 ```
 Task: Implement Order CRUD API
 
@@ -75,7 +77,7 @@ Design:
 
 ## 🛠️ Fase 2: Implementation
 
-**Objetivo**: Escrever código que passa em *todos* os 6 CI gates localmente.
+**Objetivo**: Escrever código que passa em _todos_ os 6 CI gates localmente.
 
 ### 2.1 Setup Ambiente Local
 
@@ -106,6 +108,7 @@ mkdir -p src/modules/orders/dto
 **File**: `src/modules/orders/orders.service.ts` (max 200 lines)
 
 **Checklist:**
+
 - [ ] Extends `BaseResourceService`
 - [ ] Constructor receives: `DynamoDBProvider`, `I18nService`, `OrderEventPublisher`, `AuditTrailService`
 - [ ] Inject dependencies via constructor
@@ -116,6 +119,7 @@ mkdir -p src/modules/orders/dto
 - [ ] Complexity < 15, lines < 200
 
 **Template:**
+
 ```typescript
 /**
  * OrdersService — Manages orders with soft-delete, audit, and events.
@@ -155,6 +159,7 @@ export class OrdersService extends BaseResourceService {
 **File**: `src/modules/orders/orders.controller.ts` (max 200 lines)
 
 **Checklist:**
+
 - [ ] Add `@ApiBearerAuth()` at class level
 - [ ] Use `@Body() data: CreateOrderDto` for POST
 - [ ] Use `@Query() pagination: PaginationQueryDto` for GET list
@@ -165,6 +170,7 @@ export class OrdersService extends BaseResourceService {
 - [ ] Max 200 lines, < 15 complexity
 
 **Template:**
+
 ```typescript
 @ApiTags('Orders')
 @ApiBearerAuth()
@@ -194,6 +200,7 @@ export class OrdersController {
 **File**: `src/modules/orders/order-event.publisher.ts` (< 150 lines)
 
 **Checklist:**
+
 - [ ] Extends optional pattern (standalone provider)
 - [ ] Inject `SNSProvider` via constructor
 - [ ] Define event constants: `EVENT_CREATED`, `EVENT_UPDATED`, `EVENT_DELETED`
@@ -204,6 +211,7 @@ export class OrdersController {
 ### 2.6 Implement Tests
 
 #### Unit Tests: `orders.service.spec.ts`
+
 - [ ] Mock: `DynamoDBProvider`, `I18nService`, `OrderEventPublisher`, `AuditTrailService`
 - [ ] Test: `create()`, `findOne()`, `findAll()`, `update()`, `remove()`
 - [ ] Coverage: ≥ 85% (branches, functions, lines, statements)
@@ -211,6 +219,7 @@ export class OrdersController {
 - [ ] Verify: `auditTrail.record()` is called
 
 #### Integration Tests: `orders.int-spec.ts`
+
 - [ ] Setup: Create NestJS test app with real modules
 - [ ] Test: POST/GET/PUT/DELETE /v1/orders endpoints
 - [ ] Verify: Database persistence
@@ -218,6 +227,7 @@ export class OrdersController {
 - [ ] Coverage: ≥ 80%
 
 **Example unit test:**
+
 ```typescript
 it('should create order with tenant isolation', async () => {
   const result = await service.create({
@@ -240,6 +250,7 @@ it('should create order with tenant isolation', async () => {
 **Objective**: Ensure all 6 CI gates pass BEFORE pushing.
 
 ### 3.1 Format Code
+
 ```bash
 npm run format
 npm run format -- --check
@@ -247,6 +258,7 @@ npm run format -- --check
 ```
 
 ### 3.2 Lint Code
+
 ```bash
 npm run lint
 # Expected: ZERO errors, ZERO warnings
@@ -254,24 +266,28 @@ npm run lint
 ```
 
 ### 3.3 Type Check
+
 ```bash
 npx tsc --noEmit
 # Expected: No type errors
 ```
 
 ### 3.4 Unit Tests
+
 ```bash
 npm run test:unit
 # Expected: 10 tests pass, ≥85% coverage
 ```
 
 ### 3.5 Integration Tests
+
 ```bash
 npm run test:integrated
 # Expected: Integration tests pass, ≥80% coverage
 ```
 
 ### 3.6 Security Scan
+
 ```bash
 npm run lint  # Includes no-secrets
 # Expected: No hardcoded secrets, API keys, passwords
@@ -282,6 +298,7 @@ npm run lint  # Includes no-secrets
 ## 📤 Fase 4: Commit & Push
 
 ### 4.1 Stage Files
+
 ```bash
 git add -A
 ```
@@ -291,6 +308,7 @@ git add -A
 **Types**: `feat`, `fix`, `test`, `chore`, `docs`, `refactor`, `ci`
 
 **Example:**
+
 ```bash
 git commit -m "feat: implement order CRUD API with soft-delete
 
@@ -307,6 +325,7 @@ git commit -m "feat: implement order CRUD API with soft-delete
 ```
 
 ### 4.3 Push to Remote
+
 ```bash
 git push origin feat/issue-123-order-crud
 ```
@@ -314,6 +333,7 @@ git push origin feat/issue-123-order-crud
 ### 4.4 Monitor CI Pipeline
 
 GitHub Actions runs 6 gates:
+
 1. ✅ Prettier format
 2. ✅ ESLint lint
 3. ✅ TypeScript type-check
@@ -322,6 +342,7 @@ GitHub Actions runs 6 gates:
 6. ✅ Security scan
 
 **If any gate fails:**
+
 1. Read CI error message carefully
 2. Consult [CI-COMPLIANCE.md](.github/CI-COMPLIANCE.md) for fix
 3. Apply fix locally
@@ -333,17 +354,20 @@ GitHub Actions runs 6 gates:
 ## 🚀 Fase 5: Pull Request
 
 ### 5.1 Create PR
+
 - Title: Same as commit message
 - Description: Link to issue, list changes, testing summary
 - Reviewers: Request architecture review
 
 ### 5.2 Merge Criteria
+
 - ✅ CI: All gates GREEN
 - ✅ Code review: Approved
 - ✅ Conversations: Resolved
 - ✅ Coverage: ≥ 85% unit, ≥ 80% integration
 
 ### 5.3 Merge to Main
+
 - Use "Squash and merge" or "Create a merge commit"
 - Delete branch after merge
 
@@ -379,4 +403,3 @@ A: NÃO. ESLint bloqueia. Use tipos concretos ou `unknown + type guard`.
 
 **Q: Como adiciono tradução de mensagens?**  
 A: Use `I18nService.translate('msg.key')` e adicione a chave em `src/common/i18n/pt-BR.json` e `en.json`.
-

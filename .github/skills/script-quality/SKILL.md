@@ -20,12 +20,14 @@ description: 'Garantia de qualidade para scripts de automação (Seed, Agent Run
 ### 1. ZERO Hardcoded Secrets
 
 **❌ FAILS:**
+
 ```typescript
-const apiKey = 'sk_live_123abc';  // Hardcoded secret
-const credentials = { accessKeyId: 'dummy', secretAccessKey: 'dummy' };  // Hardcoded
+const apiKey = 'sk_live_123abc'; // Hardcoded secret
+const credentials = { accessKeyId: 'dummy', secretAccessKey: 'dummy' }; // Hardcoded
 ```
 
 **✅ PASSES:**
+
 ```typescript
 // Use ConfigService or environment variables
 const apiKey = process.env.OPENAI_API_KEY!;
@@ -43,12 +45,14 @@ const credentials = {
 ### 2. Validação de Entrada
 
 **Checklist:**
+
 - [ ] Validate all `process.env.*` reads (exist, non-empty for critical vars)
 - [ ] Validate command-line arguments (`process.argv`)
 - [ ] Validate API response shapes (JSON schema or type guards)
 - [ ] Throw clear errors with exit code ≠ 0 on validation failure
 
 **Template:**
+
 ```typescript
 // Type-safe env var reading
 const REQUIRED_VARS = ['GITHUB_TOKEN', 'ISSUE_NUMBER', 'REPOSITORY'];
@@ -69,6 +73,7 @@ if (!targetColumn) {
 ### 3. Structured Logging
 
 **Requirements:**
+
 - [ ] Log all major steps (start, API calls, data processing, completion)
 - [ ] Use consistent emoji + message format
 - [ ] Include context (issue #, file count, etc)
@@ -76,6 +81,7 @@ if (!targetColumn) {
 - [ ] Use console.error for failures, console.log for info
 
 **Template:**
+
 ```typescript
 console.log(`✓ Starting seed for tenant "${tenantId}"...`);
 console.log(`  → Reading configuration from ENV`);
@@ -97,12 +103,14 @@ console.log('✓ Seed complete.');
 ### 4. Error Handling (Robust)
 
 **Requirements:**
+
 - [ ] Try-catch ALL async operations (fetch, fs, execSync)
 - [ ] Catch errors, log fully, then exit(1) — NEVER re-throw without context
 - [ ] Use typed error objects (check `instanceof Error`)
 - [ ] Provide helpful error messages to user
 
 **Template:**
+
 ```typescript
 async function fetchFromGitHub(url: string, token: string): Promise<unknown> {
   try {
@@ -119,7 +127,7 @@ async function fetchFromGitHub(url: string, token: string): Promise<unknown> {
     const err = error instanceof Error ? error : new Error(String(error));
     console.error(`✗ Failed to fetch from GitHub: ${err.message}`);
     console.error(`  URL: ${url}`);
-    throw error;  // Re-throw for outer handler (main catch block)
+    throw error; // Re-throw for outer handler (main catch block)
   }
 }
 
@@ -142,12 +150,14 @@ main();
 **ESLint Rule**: `i18next/no-literal-string` applies to scripts too!
 
 **❌ FAILS:**
+
 ```typescript
-console.log('Seeding orders...');  // Literal string
-if (error) console.log('Error occurred');  // Literal string
+console.log('Seeding orders...'); // Literal string
+if (error) console.log('Error occurred'); // Literal string
 ```
 
 **✅ PASSES (in scripts, use eslint-disable or constants):**
+
 ```typescript
 /* eslint-disable-next-line i18next/no-literal-string */
 console.log('Seeding orders...');
@@ -162,6 +172,7 @@ console.log(MSG_SEEDING_START);
 ### 6. No External Dependencies for Core Logic
 
 **Rule**: Scripts should rely ONLY on:
+
 - Node.js built-ins (`fs`, `path`, `child_process`)
 - AWS SDK v3 packages (already in project)
 - OpenAI SDK (if agent runner)
@@ -169,11 +180,13 @@ console.log(MSG_SEEDING_START);
 **Why**: Keep scripts fast, reduce attack surface, no supply chain risk.
 
 **❌ BAD:**
+
 ```typescript
-import "some-random-npm-package";  // Unvetted dependency
+import 'some-random-npm-package'; // Unvetted dependency
 ```
 
 **✅ GOOD:**
+
 ```typescript
 import * as fs from 'fs';
 import { execSync } from 'child_process';
@@ -183,12 +196,14 @@ import { DynamoDBClient, ... } from '@aws-sdk/client-dynamodb';
 ### 7. Type Safety (Full Strict Mode)
 
 **Requirements:**
+
 - [ ] `noImplicitAny: true` — all parameters must have types
 - [ ] `strictNullChecks: true` — check for null/undefined
 - [ ] `strictFunctionTypes: true` — function callbacks strictly typed
 - [ ] No `any` casts without `// @ts-expect-error` comment + reason
 
 **Template:**
+
 ```typescript
 interface ICommandOutput {
   stdout: string;
@@ -212,11 +227,13 @@ function executeCommand(cmd: string, options?: { encoding: 'utf-8' }): ICommandO
 ### 8. Graceful Shutdown
 
 **Requirements:**
+
 - [ ] On error: log, don't pollute stdout, exit(1)
 - [ ] On success: clear status message, exit(0)
 - [ ] On sigterm/sigint: cleanup resources, then exit
 
 **Template:**
+
 ```typescript
 async function cleanup() {
   // Close DB connections, cancel fetches, etc
@@ -297,6 +314,7 @@ npx ts-node scripts/seed.ts
 **Purpose**: Populate DynamoDB with test data for local development.
 
 **Checklist:**
+
 - [ ] Read DynamoDB config from env (region, endpoint, table name)
 - [ ] Validate table exists before seeding
 - [ ] Use BaseProvider pattern (if extracting to service)
@@ -304,6 +322,7 @@ npx ts-node scripts/seed.ts
 - [ ] Handle network errors gracefully
 
 **Template:**
+
 ```typescript
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
@@ -396,13 +415,15 @@ main();
 **Purpose**: Call OpenAI (Copilot) to generate code based on GitHub issues.
 
 **Checklist:**
-- [ ] Validate COPILOT_TOKEN, ISSUE_*, GITHUB_* env vars
+
+- [ ] Validate COPILOT*TOKEN, ISSUE*_, GITHUB\__ env vars
 - [ ] Handle OpenAI API errors (rate limit, auth, timeout)
 - [ ] Log API calls (input tokens, output tokens, response time)
 - [ ] Write output files atomically (no partial writes)
 - [ ] Graceful degradation if Copilot unavailable
 
 **Key Security Points:**
+
 - API_KEY never logged
 - Request/response payloads logged safely (no secrets)
 - Output files validated before writing
@@ -412,7 +433,8 @@ main();
 **Purpose**: Move issue cards on GitHub Project board via `gh` CLI.
 
 **Checklist:**
-- [ ] Validate GH_TOKEN, PROJECT_*, ISSUE_NUMBER env vars
+
+- [ ] Validate GH*TOKEN, PROJECT*\*, ISSUE_NUMBER env vars
 - [ ] Handle gh CLI errors (project doesn't exist, card not found)
 - [ ] Parse JSON responses safely (with try-catch)
 - [ ] Log what is being moved (from → to)
@@ -422,16 +444,16 @@ main();
 
 ## 🚫 Anti-Patterns (What NEVER to do in scripts)
 
-| Anti-Pattern | Why Bad | Fix |
-|--------------|---------|-----|
-| Hardcoded API keys | Security breach if exposed | Use env vars + Secrets Manager |
-| `any` type casts | Zero type safety | Use concrete types or type guards |
-| Literal strings in code | ESLint errors, i18n violation | Extract to const or eslint-disable |
-| Silent failures | Operator doesn't know script failed | Always exit(1) on error, log fully |
-| No input validation | Crashes on bad input | Validate env, CLI args, API responses |
-| External npm deps | Supply chain risk, bloat | Use only Node.js + AWS SDK already in project |
-| Async callbacks without await | Race conditions, ghost processes | Use async/await properly |
-| No logging | Can't debug in CI | Log major steps + errors |
+| Anti-Pattern                  | Why Bad                             | Fix                                           |
+| ----------------------------- | ----------------------------------- | --------------------------------------------- |
+| Hardcoded API keys            | Security breach if exposed          | Use env vars + Secrets Manager                |
+| `any` type casts              | Zero type safety                    | Use concrete types or type guards             |
+| Literal strings in code       | ESLint errors, i18n violation       | Extract to const or eslint-disable            |
+| Silent failures               | Operator doesn't know script failed | Always exit(1) on error, log fully            |
+| No input validation           | Crashes on bad input                | Validate env, CLI args, API responses         |
+| External npm deps             | Supply chain risk, bloat            | Use only Node.js + AWS SDK already in project |
+| Async callbacks without await | Race conditions, ghost processes    | Use async/await properly                      |
+| No logging                    | Can't debug in CI                   | Log major steps + errors                      |
 
 ---
 
@@ -441,4 +463,3 @@ main();
 - [Code Quality Skill](.github/skills/code-quality/SKILL.md) — Testing & JSDoc
 - [CI Compliance](.github/CI-COMPLIANCE.md) — ESLint rules
 - [Quality Checklist](.github/QUALITY-CHECKLIST.md) — Pre-commit validation
-

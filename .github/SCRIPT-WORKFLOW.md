@@ -20,6 +20,7 @@ Antes de começar a escrever um novo script, valide:
 - [ ] **Pattern**: Qual padrão de script usar? (seed, agent runner, automation?)
 
 **Documentação obrigatória no topo do arquivo:**
+
 ```typescript
 /**
  * Script: [Name]
@@ -39,11 +40,13 @@ Antes de começar a escrever um novo script, valide:
 ### Step 1: Setup & Validation
 
 **Read the Pattern:**
+
 - Data seed → [Skill: Script Quality — Pattern 1](.github/skills/script-quality/SKILL.md#pattern-1-data-seed-script)
 - Agent runner → [Skill: Script Quality — Pattern 2](.github/skills/script-quality/SKILL.md#pattern-2-agent-runner-script)
 - GitHub automation → [Skill: Script Quality — Pattern 3](.github/skills/script-quality/SKILL.md#pattern-3-github-automation-script)
 
 **Create file:**
+
 ```bash
 touch scripts/my-script.ts
 ```
@@ -53,6 +56,7 @@ touch scripts/my-script.ts
 ### Step 2: Implement with Guardrails
 
 **1. Validate Environment Variables**
+
 ```typescript
 const REQUIRED_VARS = ['VAR1', 'VAR2'];
 const missing = REQUIRED_VARS.filter((v) => !process.env[v]);
@@ -61,11 +65,12 @@ if (missing.length) {
   process.exit(1);
 }
 
-const var1 = process.env.VAR1!;  // Non-null assertion after validation
-const var2 = process.env.VAR2!;  // Safe to use
+const var1 = process.env.VAR1!; // Non-null assertion after validation
+const var2 = process.env.VAR2!; // Safe to use
 ```
 
 **2. Validate CLI Arguments**
+
 ```typescript
 const targetColumn = process.argv[2];
 if (!targetColumn) {
@@ -75,6 +80,7 @@ if (!targetColumn) {
 ```
 
 **3. Structured Logging**
+
 ```typescript
 /* eslint-disable-next-line i18next/no-literal-string */
 console.log('✓ Starting script...');
@@ -95,6 +101,7 @@ try {
 ```
 
 **4. Type All Function Signatures**
+
 ```typescript
 // ❌ BAD
 async function processData(items) {
@@ -117,6 +124,7 @@ async function processData(items: IItem[]): Promise<void> {
 ```
 
 **5. Robust Error Handling**
+
 ```typescript
 async function fetchData(url: string): Promise<unknown> {
   try {
@@ -146,6 +154,7 @@ main();
 ```
 
 **6. No Hardcoded Secrets**
+
 ```typescript
 // ❌ BAD
 const apiKey = 'sk_live_abc123';
@@ -190,6 +199,7 @@ npx tsc --noEmit
 ### Step 4: Local Test
 
 **For seed scripts:**
+
 ```bash
 # Start LocalStack
 docker-compose up -d localstack
@@ -205,6 +215,7 @@ aws dynamodb scan \
 ```
 
 **For agent runners:**
+
 ```bash
 # Set test env vars
 export COPILOT_TOKEN=ghu_...
@@ -221,6 +232,7 @@ cat src/modules/test/test.service.ts
 ```
 
 **For automation scripts:**
+
 ```bash
 # Set GitHub env vars
 export GH_TOKEN=ghp_...
@@ -258,11 +270,13 @@ git push origin branch-name
 ### Step 6: CI Validation
 
 GitHub Actions automatically validates:
+
 - ✅ `npm run format -- --check` (scripts/ included)
 - ✅ `npm run lint` (scripts/ included)
 - ✅ `npx tsc --noEmit` (scripts/ included)
 
 **If CI fails:**
+
 1. Read GitHub Actions error message
 2. Consult [Script Quality Skill](.github/skills/script-quality/SKILL.md)
 3. Fix locally (likely missing type, hardcoded secret, or literal string)
@@ -274,6 +288,7 @@ GitHub Actions automatically validates:
 ## 📝 Template Scripts
 
 ### Template 1: Seed Script
+
 ```typescript
 /**
  * Script: seed
@@ -370,9 +385,11 @@ main();
 ```
 
 ### Template 2: Agent Runner Script
+
 See [Script Quality Skill — Pattern 2](.github/skills/script-quality/SKILL.md#pattern-2-agent-runner-script)
 
 ### Template 3: GitHub Automation Script
+
 See [Script Quality Skill — Pattern 3](.github/skills/script-quality/SKILL.md#pattern-3-github-automation-script)
 
 ---
@@ -383,4 +400,3 @@ See [Script Quality Skill — Pattern 3](.github/skills/script-quality/SKILL.md#
 - [Code Quality Skill](.github/skills/code-quality/SKILL.md) — Testing & JSDoc
 - [CI Compliance](.github/CI-COMPLIANCE.md) — ESLint rules that apply to scripts
 - [Quality Checklist](.github/QUALITY-CHECKLIST.md) — Pre-commit validation steps
-
