@@ -8,6 +8,7 @@ import { AuthModule } from '../../common/guards/auth.module';
 import { MultiTenancyMiddleware } from '../../common/middlewares/multi-tenancy.middleware';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
+import { SNSProvider } from '../../providers/aws/sns.provider';
 // In ESM mode (--experimental-vm-modules), jest globals must be imported explicitly
 import { jest } from '@jest/globals';
 
@@ -29,6 +30,12 @@ const mockOrder = {
   deleted: false,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+};
+
+const mockSNSProvider = {
+  getResourceName: jest.fn().mockImplementation(() => 'test-topic'),
+  getTopicName: jest.fn().mockImplementation(() => 'test-topic'),
+  publish: jest.fn().mockImplementation(() => Promise.resolve()),
 };
 
 const mockDynamoDBProvider = {
@@ -57,6 +64,8 @@ describe('OrdersController (integration)', () => {
     })
       .overrideProvider(DynamoDBProvider)
       .useValue(mockDynamoDBProvider)
+      .overrideProvider(SNSProvider)
+      .useValue(mockSNSProvider)
       .compile();
 
     app = module.createNestApplication();

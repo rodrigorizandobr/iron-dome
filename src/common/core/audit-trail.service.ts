@@ -56,7 +56,7 @@ export class AuditTrailService {
     };
 
     try {
-      await this.dynamo.putItem(this.tableName, marshall(entry));
+      await this.dynamo.putItem(this.tableName, marshall(entry, { removeUndefinedValues: true }));
     } catch (error) {
       // Audit must never break the main flow
       const msg = error instanceof Error ? error.message : String(error);
