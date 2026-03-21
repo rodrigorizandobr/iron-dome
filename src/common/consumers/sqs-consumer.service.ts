@@ -27,18 +27,10 @@ export class SqsConsumerService extends BaseProvider implements OnModuleInit {
 
   constructor(protected readonly configService: ConfigService) {
     super(SqsConsumerService.name, configService);
-    this.client = new SQSClient({
-      region: this.configService.get<string>('AWS_REGION'),
-      endpoint: this.configService.get<string>('AWS_ENDPOINT'),
-      credentials: {
-        accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID') || 'dummy',
-        secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || 'dummy',
-      },
-    });
+    this.client = new SQSClient(this.getAwsConfig());
 
     const queueName = this.getResourceName('sqs', 'order-processor');
-    const endpoint = this.configService.get<string>('AWS_ENDPOINT', 'http://localhost:4566');
-    const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
+    const { endpoint, region } = this.getAwsConfig();
     const accountId = this.configService.get<string>('AWS_ACCOUNT_ID', '000000000000');
     // eslint-disable-next-line i18next/no-literal-string
     this.queueUrl = `${endpoint}/${accountId}/${queueName}`;
