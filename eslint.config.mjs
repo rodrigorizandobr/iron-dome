@@ -153,7 +153,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts', '**/*.test.ts'],
+    files: ['**/*.spec.ts', '**/*.test.ts', '**/*.int-spec.ts'],
     rules: {
       'i18next/no-literal-string': 'off',
       'sonarjs/no-duplicate-string': 'off',

@@ -5,6 +5,16 @@ import { JwtService } from '@nestjs/jwt';
 import * as request from 'supertest';
 import { OrdersModule } from './orders.module';
 import { AuthModule } from '../../common/guards/auth.module';
+import { OrderResponseDto } from './dto/order-response.dto';
+
+/* eslint-disable i18next/no-literal-string */
+const ORDERS_PATH = '/v1/orders';
+const TENANT_ID = 'tenant-int';
+const PRODUCT_NAME = 'Widget';
+const USER_SUB = 'user-1';
+const AUTH_HEADER = 'Authorization';
+const TENANT_HEADER = 'x-tenant-id';
+/* eslint-enable i18next/no-literal-string */
 
 describe('OrdersController (integration)', () => {
   let app: INestApplication;
@@ -26,7 +36,7 @@ describe('OrdersController (integration)', () => {
     await app.init();
 
     jwtService = module.get<JwtService>(JwtService);
-    token = jwtService.sign({ sub: 'user-1', tenantId: 'tenant-int' });
+    token = jwtService.sign({ sub: USER_SUB, tenantId: TENANT_ID });
   });
 
   afterAll(async () => {
@@ -36,30 +46,32 @@ describe('OrdersController (integration)', () => {
   describe('POST /v1/orders', () => {
     it('should reject unauthenticated requests', async () => {
       await request(app.getHttpServer())
-        .post('/v1/orders')
-        .send({ productName: 'Widget', amount: 1000 })
+        .post(ORDERS_PATH)
+        .send({ productName: PRODUCT_NAME, amount: 1000 })
         .expect(401);
     });
 
     it('should create an order with valid token', async () => {
       const res = await request(app.getHttpServer())
-        .post('/v1/orders')
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-tenant-id', 'tenant-int')
-        .send({ productName: 'Widget', amount: 1000 })
+        .post(ORDERS_PATH)
+        .set(AUTH_HEADER, `Bearer ${token}`)
+        .set(TENANT_HEADER, TENANT_ID)
+        .send({ productName: PRODUCT_NAME, amount: 1000 })
         .expect(201);
 
+      const body = res.body as OrderResponseDto;
+      // eslint-disable-next-line i18next/no-literal-string
       expect(res.body).toHaveProperty('id');
-      expect(res.body.productName).toBe('Widget');
-      expect(res.body.tenantId).toBe('tenant-int');
-      expect(res.body.deleted).toBe(false);
+      expect(body.productName).toBe(PRODUCT_NAME);
+      expect(body.tenantId).toBe(TENANT_ID);
+      expect(body.deleted).toBe(false);
     });
 
     it('should reject invalid DTO (missing productName)', async () => {
       await request(app.getHttpServer())
-        .post('/v1/orders')
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-tenant-id', 'tenant-int')
+        .post(ORDERS_PATH)
+        .set(AUTH_HEADER, `Bearer ${token}`)
+        .set(TENANT_HEADER, TENANT_ID)
         .send({ amount: 1000 })
         .expect(400);
     });
@@ -68,15 +80,15 @@ describe('OrdersController (integration)', () => {
   describe('GET /v1/orders', () => {
     it('should reject unauthenticated requests', async () => {
       await request(app.getHttpServer())
-        .get('/v1/orders')
+        .get(ORDERS_PATH)
         .expect(401);
     });
 
     it('should list orders for tenant', async () => {
       const res = await request(app.getHttpServer())
-        .get('/v1/orders')
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-tenant-id', 'tenant-int')
+        .get(ORDERS_PATH)
+        .set(AUTH_HEADER, `Bearer ${token}`)
+        .set(TENANT_HEADER, TENANT_ID)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -86,9 +98,10 @@ describe('OrdersController (integration)', () => {
   describe('GET /v1/orders/:id', () => {
     it('should return 404 for nonexistent order', async () => {
       await request(app.getHttpServer())
-        .get('/v1/orders/nonexistent-id')
-        .set('Authorization', `Bearer ${token}`)
-        .set('x-tenant-id', 'tenant-int')
+        // eslint-disable-next-line i18next/no-literal-string
+        .get(`${ORDERS_PATH}/nonexistent-id`)
+        .set(AUTH_HEADER, `Bearer ${token}`)
+        .set(TENANT_HEADER, TENANT_ID)
         .expect(404);
     });
   });
@@ -96,7 +109,8 @@ describe('OrdersController (integration)', () => {
   describe('DELETE /v1/orders/:id (soft-delete)', () => {
     it('should reject unauthenticated requests', async () => {
       await request(app.getHttpServer())
-        .delete('/v1/orders/some-id')
+        // eslint-disable-next-line i18next/no-literal-string
+        .delete(`${ORDERS_PATH}/some-id`)
         .expect(401);
     });
   });
