@@ -10,7 +10,13 @@
 import { OpenAI } from 'openai';
 
 /* eslint-disable i18next/no-literal-string */
-const REQUIRED_VARS = ['COPILOT_TOKEN', 'ISSUE_TITLE', 'ISSUE_BODY', 'ISSUE_NUMBER', 'GITHUB_REPOSITORY'];
+const REQUIRED_VARS = [
+  'COPILOT_TOKEN',
+  'ISSUE_TITLE',
+  'ISSUE_BODY',
+  'ISSUE_NUMBER',
+  'GITHUB_REPOSITORY',
+];
 const MISSING_VARS = REQUIRED_VARS.filter((v) => !process.env[v]);
 
 if (MISSING_VARS.length) {
@@ -30,19 +36,6 @@ const GITHUB_API_BASE = 'https://api.github.com';
 const GPT_MODEL = 'gpt-4o';
 const TEMPERATURE_REFINEMENT = 0.5;
 /* eslint-enable i18next/no-literal-string */
-
-interface IOpenAIResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
-
-interface IGitHubCommentResponse {
-  status?: number;
-  id?: string;
-}
 
 const client = new OpenAI({
   baseURL: COPILOT_API_BASE,

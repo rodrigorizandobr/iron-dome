@@ -156,6 +156,14 @@ export default tseslint.config(
     },
   },
   {
+    files: ['scripts/**/*.ts'],
+    rules: {
+      'i18next/no-literal-string': 'off',
+      'no-secrets/no-secrets': 'off',
+      'sonarjs/no-duplicate-string': 'off',
+    },
+  },
+  {
     ignores: [
       'dist/**',
       'node_modules/**',

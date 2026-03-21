@@ -5,14 +5,20 @@
  * Required ENV: COPILOT_TOKEN, ISSUE_TITLE, ISSUE_BODY, ISSUE_NUMBER, GITHUB_REPOSITORY
  * Optional ENV: GH_TOKEN (defaults to GITHUB_TOKEN), OPENAI_API_KEY_OVERRIDE
  * Exit codes: 0 = success, 1 = error (missing env, API error, invalid JSON)
- * Example: COPILOT_TOKEN=token ISSUE_TITLE="..." ISSUE_BODY="..." ISSUE_NUMBER=123 GITHUB_REPOSITORY=owner/repo npx ts-node scripts/dev.ts
+ * eslint-disable no-secrets/no-secrets
  */
 import { OpenAI } from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
 
 /* eslint-disable i18next/no-literal-string */
-const REQUIRED_VARS = ['COPILOT_TOKEN', 'ISSUE_TITLE', 'ISSUE_BODY', 'ISSUE_NUMBER', 'GITHUB_REPOSITORY'];
+const REQUIRED_VARS = [
+  'COPILOT_TOKEN',
+  'ISSUE_TITLE',
+  'ISSUE_BODY',
+  'ISSUE_NUMBER',
+  'GITHUB_REPOSITORY',
+];
 const MISSING_VARS = REQUIRED_VARS.filter((v) => !process.env[v]);
 
 if (MISSING_VARS.length) {
@@ -76,6 +82,7 @@ async function fetchGitHubComments(issueNumber: string, repo: string): Promise<s
     if (lastErrorComment) {
       /* eslint-disable-next-line i18next/no-literal-string */
       console.log('🚨 Detected previous test failure. AI enters fix mode.');
+      /* eslint-disable-next-line i18next/no-literal-string */
       return `\n\nATENÇÃO: A sua implementação anterior falhou nos testes de pipeline. Leia o log de erro abaixo e corrija os arquivos correspondentes:\n${lastErrorComment.body}`;
     }
 
@@ -102,11 +109,15 @@ async function generateCodeViaOpenAI(prompt: string): Promise<IGeneratedFile[]> 
 
     /* eslint-disable-next-line i18next/no-literal-string */
     // Remove markdown code blocks that AI may wrap around JSON
-    iaOutput = iaOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+    iaOutput = iaOutput
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
     try {
       const files = JSON.parse(iaOutput) as IGeneratedFile[];
       if (!Array.isArray(files)) {
+        /* eslint-disable-next-line i18next/no-literal-string */
         throw new Error('Expected array of files');
       }
       return files;
@@ -116,6 +127,7 @@ async function generateCodeViaOpenAI(prompt: string): Promise<IGeneratedFile[]> 
       console.error(`✗ Invalid JSON from AI: ${err.message}`);
       /* eslint-disable-next-line i18next/no-literal-string */
       console.error(`  Response: ${iaOutput.substring(0, 200)}...`);
+      /* eslint-disable-next-line i18next/no-literal-string */
       throw new Error('AI response is not valid JSON');
     }
   } catch (error) {
@@ -152,6 +164,7 @@ async function main(): Promise<void> {
     const feedbackErro = await fetchGitHubComments(ISSUE_NUMBER, GITHUB_REPOSITORY);
 
     // Build prompt for Copilot
+    /* eslint-disable-next-line i18next/no-literal-string */
     const prompt = `Você é um Desenvolvedor Sênior especialista em Node.js, NestJS e AWS Serverless.
 Sua tarefa é escrever ou corrigir o código para resolver a seguinte issue: "${ISSUE_TITLE}" - "${ISSUE_BODY}".${feedbackErro}
 

@@ -44,21 +44,23 @@ function getModifiedFiles(): string[] {
   try {
     /* eslint-disable-next-line i18next/no-literal-string */
     console.log('→ Fetching modified files from git diff (main...HEAD)...');
-    return execSync('git diff --name-only main...HEAD', { encoding: 'utf-8' })
+    const output = execSync('git diff --name-only main...HEAD', { encoding: 'utf-8' });
+    return output
       .split('\n')
       .filter((f) => f.trim() !== '' && f.endsWith('.ts') && !f.endsWith('.spec.ts'));
-  } catch (err1) {
+  } catch {
     try {
       /* eslint-disable-next-line i18next/no-literal-string */
       console.warn('⚠ git diff main...HEAD failed, trying HEAD diff...');
-      return execSync('git show --name-only --format="" HEAD', { encoding: 'utf-8' })
+      const output = execSync('git show --name-only --format="" HEAD', { encoding: 'utf-8' });
+      return output
         .split('\n')
         .filter((f) => f.trim() !== '' && f.endsWith('.ts') && !f.endsWith('.spec.ts'));
     } catch (err2) {
       const err = err2 instanceof Error ? err2 : new Error(String(err2));
       /* eslint-disable-next-line i18next/no-literal-string */
       console.error(`✗ Failed to get modified files: ${err.message}`);
-      throw error;
+      throw err;
     }
   }
 }
@@ -98,11 +100,15 @@ async function generateTestsViaOpenAI(prompt: string): Promise<IGeneratedFile[]>
 
     /* eslint-disable-next-line i18next/no-literal-string */
     // Remove markdown code blocks
-    iaOutput = iaOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+    iaOutput = iaOutput
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
     try {
       const files = JSON.parse(iaOutput) as IGeneratedFile[];
       if (!Array.isArray(files)) {
+        /* eslint-disable-next-line i18next/no-literal-string */
         throw new Error('Expected array of files');
       }
       return files;
@@ -112,6 +118,7 @@ async function generateTestsViaOpenAI(prompt: string): Promise<IGeneratedFile[]>
       console.error(`✗ Invalid JSON from AI: ${err.message}`);
       /* eslint-disable-next-line i18next/no-literal-string */
       console.error(`  Response: ${iaOutput.substring(0, 200)}...`);
+      /* eslint-disable-next-line i18next/no-literal-string */
       throw new Error('AI response is not valid JSON');
     }
   } catch (error) {
@@ -160,6 +167,7 @@ async function main(): Promise<void> {
     const sourceCodeContext = readSourceCodeContext(modifiedFiles);
 
     // Build prompt for test generation
+    /* eslint-disable-next-line i18next/no-literal-string */
     const prompt = `Você é um Engenheiro de Software QA / SDET especialista em Node.js, NestJS e AWS.
 Sua tarefa é escrever os testes unitários usando Jest para os arquivos desenvolvidos para a issue: "${ISSUE_TITLE}" - "${ISSUE_BODY}".
 
