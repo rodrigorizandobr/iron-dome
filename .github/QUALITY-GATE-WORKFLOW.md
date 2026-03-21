@@ -48,35 +48,50 @@ npm run test:unit
 
 ```bash
 npm run test:unit -- --coverage
-# Uses v8 provider, não babel-plugin-istanbul
+# Uses v8 provider (NOT babel-plugin-istanbul)
+# ESM NOT required for unit tests
 # Toma ~10s
 ```
 
-✅ **Testes + coverage devem passar SEM erros de instrumentação**
+✅ **Testes + coverage DEVEM passar com 80% minimum (module-specific)**
 
 **Se falhar com "TypeError: original argument must be of type function":**
-→ Verifique `jest-unit.json` tem `"coverageProvider": "v8"`
-→ Verifique `collectCoverageFromChildProcesses` foi removido
-→ Consulte `.github/CI-COMPLIANCE.md` Scenario 6
+→ Verifique `jest-unit.json` tem `"coverageProvider": "v8"` (não babel)
+→ Verifique `"globals"` foi REMOVIDO (deprecated ts-jest syntax)
+→ Verifique só `"transform"` com ts-jest config está presente
+→ Consulte `.github/JEST-REFERENCE.md` ou `.github/agents/CI-COMPLIANCE-AGENTS.md`
+
+### 1.6 Integration Tests (OPCIONAL em pre-commit)
+
+```bash
+npm run test:integrated
+# ESM mode (NODE_OPTIONS=--experimental-vm-modules)
+# Coverage é disabled (v8 + ESM + AWS SDK incompatível)
+# SEM flag --coverage
+```
+
+✅ **Integration tests são opcionais em pre-commit** (rodam em CI automaticamente)
+
+⚠️ **NUNCA use** `npm run test:integrated -- --coverage` (causa babel-plugin-istanbul error)
 
 ---
 
 ## 2. What MUST be Tested (Test Strategy)
 
-| Componente           | Arquivo           | Coverage Min | Estratégia                   |
-| -------------------- | ----------------- | ------------ | ---------------------------- |
-| Service (CRUD logic) | `*.service.ts`    | **80%**      | Unit test com mocks (GLOBAL) |
-| Controller (routes)  | `*.controller.ts` | **80%**      | Unit + Integration test      |
-| Provider (AWS API)   | `*provider.ts`    | **80%**      | Unit test com mocks          |
-| DTO (data objects)   | `*.dto.ts`        | **0%**       | Não testável (excluído)      |
-| Guard (auth)         | `*guard.ts`       | **80%**      | Integration test (se usado)  |
-| Middleware           | `*middleware.ts`  | **80%**      | Integration test (se usado)  |
+| Componente           | Tipo de Teste         | Coverage Min | Strategy |
+| -------------------- | --------------------- | ------------ | -------- |
+| Service (CRUD)       | **Unit (spec.ts)**    | **80%**      | Mocks de providers + audit trail |
+| Controller (routes)  | **Unit (spec.ts)**    | **80%**      | Mocks de service + JWT |
+| Provider (AWS API)   | **Unit (spec.ts)**    | **80%**      | Mocks de AWS SDK |
+| Integration Tests    | **Integration (int-spec.ts)** | **NONE** | Testa fluxo real com LocalStack |
+| DTO (data objects)   | **NENHUM**            | **0%**       | Excluído do coverage (tipos puros) |
+| Guard (auth)         | **Unit (spec.ts)**    | **70%**      | Mocks de AuthService |
+| Middleware           | **Unit (spec.ts)**    | **70%**      | Mocks de request/response |
 
-**Coverage Global**: 80% em BRANCHES, FUNCTIONS, LINES, STATEMENTS
-
-- Bloqueador de CI (sem 80%, não passa)
-- Aplicado a TODOS os testes do projeto
-- Novo código sem testes = falha obrigatoriedade
+**Coverage Rules**:
+- ✅ **Unit tests** SEMPRE coletam coverage (v8 provider — obrigatório 80% minimum)
+- ❌ **Integration tests** NUNCA coletam coverage (ESM + AWS SDK = incompatível)
+- ❌ **PROIBIDO** usar `npm run test:integrated -- --coverage` (causes babel-plugin-istanbul error)
 
 ---
 

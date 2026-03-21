@@ -49,11 +49,9 @@ npm run test:unit
 # With coverage using v8 (~10s)
 npm run test:unit -- --coverage
 
-# Integration tests (no coverage by default, ~30s)
+# Integration tests (ESM mode, no coverage allowed, ~30s)
 npm run test:integrated
-
-# With integration coverage
-npm run test:integrated -- --coverage
+# ⚠️ DO NOT use --coverage with integration tests (ESM + v8 + AWS SDK = incompatible)
 ```
 
 All commands should pass WITHOUT:
@@ -61,6 +59,11 @@ All commands should pass WITHOUT:
 - ❌ `TypeError: original argument must be of type function`
 - ❌ `babel-plugin-istanbul` errors
 - ❌ `test-exclude` module errors
+- ❌ `globals is deprecated` warning (ts-jest)
+
+**Why not coverage on integration tests?**
+
+ESM mode + v8 coverage + AWS SDK v3 dynamic imports = incompatible. Use unit test coverage instead (already enforced at 80%).
 
 ---
 

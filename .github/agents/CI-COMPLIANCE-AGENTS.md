@@ -125,17 +125,21 @@ Failed to collect coverage from /path/to/src/...
 
 **Importante**: Este é um bloqueador de CI. Sem 80%, não passa. Sem passar, não merge.
 
-### ✅ 5. Integration Tests (No Coverage)
+### ✅ 5. Integration Tests (Optional in pre-commit)
 
 ```bash
 npm run test:integrated
+# ⚠️ NUNCA use --coverage (ESM + v8 + AWS SDK = incompatível)
 ```
 
-- **Deve passar**: All integration tests pass, coverage ≥ 80%
+- **Status**: Opcional em pre-commit (roda em CI automaticamente)
+- **Coverage**: **DESABILITADO** (ESM + AWS SDK v3 = incompatível com v8 provider)
+- **POR QUÊ NÃO COVERAGE?**: Unit tests já cobrem 80% (mandatory). Integration testa comportamento, não linhas.
 - **Se falhar**:
   - Ensure LocalStack is running (`docker-compose up`)
   - Add `*.int-spec.ts` files with real DB interactions
   - Check SQS/SNS topics exist in LocalStack
+  - **IMPORTANTE**: Não use `--coverage` (causa `babel-plugin-istanbul` error)
 
 ### ✅ 6. Security Scan (No Secrets)
 
