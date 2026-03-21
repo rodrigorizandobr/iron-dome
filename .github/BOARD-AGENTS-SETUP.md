@@ -1,4 +1,4 @@
-# 🤖 Board Agents — Como Usar
+# 🤖 Board Agents — SEM LABELS! (Totalmente Automático)
 
 ## Fluxo Automático de IA por Etapas
 
@@ -12,139 +12,163 @@ Cada etapa é executada por um **agent especializado** em sua tarefa.
 
 ---
 
-## 🚀 Como Iniciar Um Projeto
+## 🚀 Como Iniciar Um Projeto (SEM LABELS)
 
-### **Opção 1: Começar com uma Issue (Recomendado)**
+### **Opção 1: Criar uma Issue (Recomendado)**
 
-1. **Crie uma issue** no GitHub com o título e descrição da funcionalidade
+1. **Crie uma issue** no GitHub com o título e descrição
    - Exemplo: "Implementar autenticação JWT para user endpoints"
 
-2. **Adicione a label** `refinament` à issue
-   - GitHub Actions dispara automaticamente
-   - Agent **Refinement** analisa e refina a issue
-   - Ao terminar, remove `refinament` e adiciona `dev`
+2. **Ou no GitHub Projects**: Crie um card que cria uma issue automaticamente
 
-3. **Workflow continua automaticamente**:
-   - ✅ `dev` → Agent Dev gera código
-   - ✅ `dev-test` → Agent Test gera testes
-   - ✅ `testing` → Testes são executados
-   - ✅ `pr` → PR é criado automaticamente
-   - ✅ `done` → Issue movida para Done no board
+3. **O workflow dispara AUTOMATICAMENTE**:
+   - ✅ Agent **Refinement** analisa e refina a issue
+   - ✅ Agent **Dev** gera código
+   - ✅ Agent **Test** gera testes
+   - ✅ **Testes** são executados
+   - ✅ **PR** é criado automaticamente
+   - ✅ Issue movida para **Done**
 
-### **Opção 2: Via GitHub Projects Card**
+**Nenhum label necessário!** O workflow detecta automaticamente.
 
-1. Crie um card no GitHub Projects
-2. **Clique no card** → Abre a issue correspondente
-3. Na issue, **adicione a label** `refinament`
-4. O workflow é acionado automaticamente
+### **Opção 2: Disparo Manual (Workflow Dispatch)**
+
+Se você quiser rodar um stage específico manualmente:
+
+1. Vá para **GitHub Actions** → **Autonomous Board Agents**
+2. Clique **"Run workflow"**
+3. Selecione:
+   - **Stage**: `refinament`, `dev`, `dev-test`, `testing`, ou `pr`
+   - **Issue number**: O número da issue
+4. Clique **"Run workflow"**
 
 ---
 
-## 📋 Labels Available
+## 📋 Labels (Agora Automáticos - Optional)
 
-| Label | Etapa | Descri <PRESIDIO_ANONYMIZED_EMAIL_ADDRESS>ção | Agente |
+| Label | Etapa | Descrição | Auto-adicionado? |
 | --- | --- | --- | --- |
-| `refinament` | 1️⃣ | Análise e refinamento da issue | Agent Refinement |
-| `dev` | 2️⃣ | Desenvolvimento do código | Agent Dev |
-| `dev-test` | 3️⃣ | Desenvolvimento dos testes | Agent Test |
-| `testing` | 4️⃣ | Execução dos testes e feedback | Test Runner |
-| `pr` | 5️⃣ | Criação do PR e CI | CI Agent |
-| `done` | ✅ | Issue resolvida | - |
+| `refinament` | 1️⃣ | Análise e refinamento da issue | ✅ Sim (ao criar issue) |
+| `dev` | 2️⃣ | Desenvolvimento do código | ✅ Sim (após refinement) |
+| `dev-test` | 3️⃣ | Desenvolvimento dos testes | ✅ Sim (após dev) |
+| `testing` | 4️⃣ | Execução dos testes e feedback | ✅ Sim (após dev-test) |
+| `pr` | 5️⃣ | Criação do PR e CI | ✅ Sim (se testes passem) |
+| `done` | ✅ | Issue resolvida | ✅ Sim (ao criar PR) |
 
 ---
 
-## 🔄 Fluxo Detalhado
+## 🔄 Como Funciona (Fluxo Automático)
 
-### **Etapa 1: Refinement** (`refinament`)
+### **Etapa 1: Você cria uma Issue**
 
 ```
-👤 Você cria issue
-    ↓
+👤 Cria issue no GitHub
+        ↓
+🤖 Workflow detecta `issues.opened`
+   - Inicia o agente Refinement automaticamente
+   - Adiciona label "refinament" (auto)
+```
+
+### **Etapa 2: Agent Refinement executa**
+
+```
 🤖 Agent Refinement:
-   - Lê o título e descrição
-   - Refina o escopo
-   - Define acceptance criteria
+   - Lê título e descrição
+   - Refina escopo e acceptance criteria
    - Comenta na issue com sugestões
-    ↓
-✅ Remove label "refinament"
-✅ Adiciona label "dev"
+        ↓
+✅ Remove "refinament"
+✅ Adiciona "dev" (auto)
 ```
 
-### **Etapa 2: Dev** (`dev`)
+### **Etapa 3: Agent Dev executa**
 
 ```
 🤖 Agent Dev:
    - Cria branch `feat/issue-{number}`
-   - Implementa o código
-   - Segue padrões da Iron Dome
+   - Implementa código
+   - Segue padrões Iron Dome
    - Commit automático
-    ↓
-✅ Remove label "dev"
-✅ Adiciona label "dev-test"
+        ↓
+✅ Adiciona "dev-test"
 ```
 
-### **Etapa 3: Dev-Test** (`dev-test`)
+### **Etapa 4: Agent Test executa**
 
 ```
 🤖 Agent Test:
    - Cria testes unitários
-   - Mocks DynamoDB, services, etc.
    - Target: 80%+ coverage
    - Commit automático
-    ↓
-✅ Remove label "dev-test"
-✅ Adiciona label "testing"
+        ↓
+✅ Adiciona "testing"
 ```
 
-### **Etapa 4: Testing** (`testing`)
+### **Etapa 5: Test Runner executa**
 
 ```
 🤖 Test Runner:
    - Executa: npm run test:unit -- --coverage
-   - Checa coverage
-   - Se PASS: Move para "pr"
-   - Se FAIL: Volta para "dev" com logs de erro
+   
+   SE PASS ✅ → Adiciona "pr"
+   SE FAIL ❌ → Volta para "dev"
 ```
 
-### **Etapa 5: PR** (`pr`)
+### **Etapa 6: CI Agent executa**
 
 ```
 🤖 CI Agent:
    - Executa: npm run lint, build, test:integrated
-   - Se PASS: Cria PR automático
-   - Comenta no issue
-   - Move para "done"
-   - Se FAIL: Volta para "dev"
+   
+   SE PASS ✅ → Cria PR automático
+              → Adiciona "done"
+   SE FAIL ❌ → Volta para "dev"
 ```
 
-### **Etapa 6: Done** (`done`)
+### **Etapa 7: Done**
 
 ```
-🎉 Issue resolvida
-   - PR criado e disponível para merge
+🎉 Issue resolvida completamente
+   - PR criado e mergeável
    - Testes passando
    - Coverage > 80%
 ```
 
 ---
 
-## ⚡ Exemplos
+## ⚡ Exemplo Prático
 
-### **Exemplo 1: Criar nova feature**
+### **Teste Agora (2 minutos)**
 
 ```bash
-# 1. Crie a issue manualmente
-# Título: "Implement order cancellation endpoint"
-# Descrição: "Add POST /orders/{id}/cancel endpoint..."
+# 1. Crie uma issue no GitHub (UI)
+# Título: "Add CORS configuration endpoint"
+# Descrição: "Need POST /config/cors endpoint for dynamic CORS settings"
 
-# 2. No GitHub, adicione label "refinament"
+# 2. Não adicione nenhum label (automático!)
 
-# 3. Observe a mágica acontecer:
-# - Agent Refinement comenta com detalhes técnicos ✅
-# - Agent Dev implementa o endpoint ✅
-# - Agent Test escreve testes ✅
-# - Testes rodam e passam ✅
-# - PR é criado automaticamente ✅
+# 3. Observe em: GitHub Actions → Autonomous Board Agents
+# Veja os agents trabalhando em tempo real
+
+# 4. Acompanhe progresso na issue via comentários automáticos
+```
+
+### **Result Esperado**
+
+```
+Issue Created
+    ↓
+[Refinement Agent] Analisa o escopo
+    ↓ (auto-label: dev)
+[Dev Agent] Gera POST /config/cors endpoint
+    ↓ (auto-label: dev-test)
+[Test Agent] Gera testes unitários
+    ↓ (auto-label: testing)
+[Test Runner] npm run test:unit -- --coverage
+    ↓ (auto-label: pr, se passar)
+[CI Agent] npm run lint && npm run test:integrated
+    ↓ (auto-label: done, se passar)
+PR Criado e Issue Movida para Done ✅
 ```
 
 ---
@@ -153,28 +177,31 @@ Cada etapa é executada por um **agent especializado** em sua tarefa.
 
 ### **"This job was skipped"**
 
-**Causa**: Label não foi adicionada à issue, ou o script não existe
+**Causa**: Workflow dispatch não foi chamado corretamente
 
 **Solução**:
-1. Verifique se a **label foi realmente adicionada**
-2. Verifique se o **script existe**: `scripts/agents/{stage}.ts`
-3. Rode manualmente: `npx ts-node scripts/agents/refinament.ts`
+1. Se criou issue normalmente → Just wait, workflow deve disparar em segundos
+2. Se quer rodar manualmente → Actions → Autonomous Board Agents → "Run workflow"
+3. Verifique se o GitHub Actions está ativo no repositório
+
+### **Issue não avança de etapa**
+
+**Causa**: Script do agent não gerou output
+
+**Solução**:
+1. Verifique logs em: GitHub Actions → Board Agents → Log detalhado
+2. Verifique se `COPILOT_TOKEN` está configurado em Secrets
+3. Verifique se `PROJECT_NUMBER` está em Vars
 
 ### **Testes falhando**
 
-**Esperado**: Workflow move a issue volta para `dev` com logs de erro
+**Esperado**: Workflow move issue volta para `dev` com logs
 
-**A IA vai tentar arrumar e voltar automaticamente**
-
-### **PR já existe**
-
-**Descrição**: Mensagem durante etapa "pr"
-
-**Não é erro**: Workflow detectou que o PR já foi criado (merge anterior meio)
+**Próximo passo**: Agent Dev tenta corrigir automaticamente
 
 ---
 
-## 🔐 Permissões Necessárias
+## 🔐 Configuração Necessária (One-time)
 
 O GitHub Actions precisa de:
 - `contents: write` — Fazer commits e push
@@ -183,15 +210,67 @@ O GitHub Actions precisa de:
 
 Já configuradas em `.github/workflows/board-agents.yml`
 
+### Secrets Necessários:
+
+**Adicione em Settings → Secrets → Actions:**
+
+```
+COPILOT_TOKEN = seu token de acesso (para integração IA)
+```
+
+### Vars Necessários:
+
+**Adicione em Settings → Variables → Actions:**
+
+```
+PROJECT_NUMBER = número do seu GitHub Projects (ex: 5)
+```
+
 ---
 
 ## 📚 Próximos Passos
 
 1. **Crie uma issue** com escopo claro
-2. **Adicione label** `refinament`
-3. **Observe o workflow** em Actions → Board Agents
-4. **Acompanhe os comentários** na issue
+2. **Deixe o workflow rodar** (nenhuma ação manual necessária!)
+3. **Acompanhe na issue** os comentários automation
+4. **Verifique PR** quando estiver pronto
 
 ---
 
-**🎯 Objetivo**: Zero-touch deployment do conceito até o merge!
+## ✨ Fluxo Resumido
+
+```
+┌─ Issue Criada ─┐
+│                │
+└────────────────┘
+     ↓ auto
+┌─ Refinement ───┐
+│ (análise)      │
+└────────────────┘
+     ↓ auto
+┌─ Dev ─────────┐
+│ (código)       │
+└────────────────┘
+     ↓ auto
+┌─ Dev-Test ────┐
+│ (testes)       │
+└────────────────┘
+     ↓ auto
+┌─ Testing ─────┐
+│ (executa)      │
+└────────────────┘
+     ↓ if pass
+┌─ PR ──────────┐
+│ (CI + merge)   │
+└────────────────┘
+     ↓ if pass
+┌─ Done ────────┐
+│ ✅ Resolvida! │
+└────────────────┘
+```
+
+**Nenhum label adicionar manualmente!** Tudo é automático.
+
+---
+
+**🎯 Objetivo**: Zero-click development — Da ideia ao merge, sem intervenção manual!

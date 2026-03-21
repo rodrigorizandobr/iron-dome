@@ -1,8 +1,28 @@
 name: Autonomous Board Agents
 
 on:
+  # Trigger 1: Manual dispatch (user clicks "Run workflow" button)
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to run (refinament, dev, dev-test, testing, pr)'
+        required: true
+        default: 'refinament'
+        type: choice
+        options:
+          - refinament
+          - dev
+          - dev-test
+          - testing
+          - pr
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+        type: number
+
+  # Trigger 2: When issue is created (from GitHub Projects card)
   issues:
-    types: [labeled]
+    types: [opened, labeled]
 
 # Permissões necessárias para a IA ler código, commitar na branch e comentar nas issues
 permissions:
@@ -11,11 +31,37 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Detect which stage to run
+  detect-stage:
+    runs-on: ubuntu-latest
+    outputs:
+      stage: ${{ steps.detect.outputs.stage }}
+      issue_number: ${{ steps.detect.outputs.issue_number }}
+    steps:
+      - name: Detect Stage from Input or Event
+        id: detect
+        run: |
+          # If workflow_dispatch, use the input stage
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "stage=${{ github.event.inputs.stage }}" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "📋 Workflow dispatched manually for stage: ${{ github.event.inputs.stage }}"
+          # If issue opened/labeled, start from refinament
+          elif [ "${{ github.event_name }}" = "issues" ]; then
+            echo "stage=refinament" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "📋 Issue event detected - starting from refinament"
+          else
+            echo "stage=refinament" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
+
   # ==========================================
   # 1. REFINAMENT
   # ==========================================
   agent-refinament:
-    if: github.event.label.name == 'refinament'
+    needs: [detect-stage]
+    if: needs.detect-stage.outputs.stage == 'refinament'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,24 +75,25 @@ jobs:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: npx ts-node scripts/agents/refinament.ts
 
       - name: Avançar para Dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
-          # Remove a label atual para evitar duplicidade e conflitos
-          gh issue edit ${{ github.event.issue.number }} --remove-label "refinament"
+          # Add label "dev" to transition to next stage
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "dev"
           npx ts-node scripts/move-card.ts "dev"
 
   # ==========================================
   # 2. DEV
   # ==========================================
   agent-dev:
-    if: github.event.label.name == 'dev'
+    needs: [detect-stage]
+    if: needs.detect-stage.outputs.stage == 'dev'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,14 +106,14 @@ jobs:
         run: |
           git config user.name "AI Developer"
           git config user.email "ai-dev@iron-dome.local"
-          git checkout -b feat/issue-${{ github.event.issue.number }} || git checkout feat/issue-${{ github.event.issue.number }}
+          git checkout -b feat/issue-${{ needs.detect-stage.outputs.issue_number }} || git checkout feat/issue-${{ needs.detect-stage.outputs.issue_number }}
 
       - name: Desenvolver Código (IA)
         env:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx ts-node scripts/agents/dev.ts
 
@@ -75,30 +122,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git add .
-          git commit -m "feat: código gerado pela IA para issue #${{ github.event.issue.number }}" || echo "Sem mudanças"
-          git push origin feat/issue-${{ github.event.issue.number }}
-          gh issue comment ${{ github.event.issue.number }} --body "💻 **Desenvolvimento Concluído.** Código commitado."
+          git commit -m "feat: código gerado pela IA para issue #${{ needs.detect-stage.outputs.issue_number }}" || echo "Sem mudanças"
+          git push origin feat/issue-${{ needs.detect-stage.outputs.issue_number }}
+          gh issue comment ${{ needs.detect-stage.outputs.issue_number }} --body "💻 **Desenvolvimento Concluído.** Código commitado."
 
       - name: Avançar para Dev-Test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
-          gh issue edit ${{ github.event.issue.number }} --remove-label "dev"
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "dev-test"
           npx ts-node scripts/move-card.ts "dev-test"
 
   # ==========================================
   # 3. DEV-TEST
   # ==========================================
   agent-dev-test:
-    if: github.event.label.name == 'dev-test'
+    needs: [detect-stage]
+    if: needs.detect-stage.outputs.stage == 'dev-test'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Checkout da branch da Issue
         run: |-
-          git checkout feat/issue-${{ github.event.issue.number }} || echo "Aviso: Branch não encontrada!"
+          git checkout feat/issue-${{ needs.detect-stage.outputs.issue_number }} || echo "Aviso: Branch não encontrada!"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -109,7 +157,7 @@ jobs:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: npx ts-node scripts/agents/dev-test.ts
 
       - name: Commitar Testes
@@ -118,26 +166,27 @@ jobs:
           git config user.email "ai-tester@iron-dome.local"
           git add .
           git commit -m "test: testes unitários gerados pela IA" || echo "Sem mudanças"
-          git push origin feat/issue-${{ github.event.issue.number }}
+          git push origin feat/issue-${{ needs.detect-stage.outputs.issue_number }}
 
       - name: Avançar para Testing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
-          gh issue edit ${{ github.event.issue.number }} --remove-label "dev-test"
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "testing"
           npx ts-node scripts/move-card.ts "testing"
 
   # ==========================================
   # 4. TESTING (Feedback Loop)
   # ==========================================
   agent-testing:
-    if: github.event.label.name == 'testing'
+    needs: [detect-stage]
+    if: needs.detect-stage.outputs.stage == 'testing'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: git checkout feat/issue-${{ github.event.issue.number }}
+      - run: git checkout feat/issue-${{ needs.detect-stage.outputs.issue_number }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -157,10 +206,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "✅ **Testes Passaram!** Cobertura atingida. Movendo para PR."
-          gh issue edit ${{ github.event.issue.number }} --remove-label "testing"
+          gh issue comment ${{ needs.detect-stage.outputs.issue_number }} --body "✅ **Testes Passaram!** Cobertura atingida. Movendo para PR."
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "pr"
           npx ts-node scripts/move-card.ts "pr"
 
       - name: Falha -> Volta para DEV
@@ -168,28 +217,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
           TEST_LOG=$(cat test_output.txt)
-          gh issue comment ${{ github.event.issue.number }} --body "❌ **Testes Falharam.** Retornando para a IA arrumar.
+          gh issue comment ${{ needs.detect-stage.outputs.issue_number }} --body "❌ **Testes Falharam.** Retornando para a IA arrumar.
           <details><summary>Log do Erro (Jest)</summary>
 
           \`\`\`
           $TEST_LOG
           \`\`\`
           </details>"
-          gh issue edit ${{ github.event.issue.number }} --remove-label "testing"
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "dev"
           npx ts-node scripts/move-card.ts "dev"
 
   # ==========================================
   # 5. PR (Integração e Done)
   # ==========================================
   agent-pr:
-    if: github.event.label.name == 'pr'
+    needs: [detect-stage]
+    if: needs.detect-stage.outputs.stage == 'pr'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: git checkout feat/issue-${{ github.event.issue.number }}
+      - run: git checkout feat/issue-${{ needs.detect-stage.outputs.issue_number }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -209,11 +259,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
-          gh pr create --title "feat: Resolvendo issue #${{ github.event.issue.number }}" --body "PR automático gerado pelo agente da Iron Dome." --base main --head feat/issue-${{ github.event.issue.number }} || echo "PR já existe"
-          gh issue comment ${{ github.event.issue.number }} --body "🎉 **Pipeline Completo!** PR criado e issue movida para Done."
-          gh issue edit ${{ github.event.issue.number }} --remove-label "pr"
+          gh pr create --title "feat: Resolvendo issue #${{ needs.detect-stage.outputs.issue_number }}" --body "PR automático gerado pelo agente da Iron Dome." --base main --head feat/issue-${{ needs.detect-stage.outputs.issue_number }} || echo "PR já existe"
+          gh issue comment ${{ needs.detect-stage.outputs.issue_number }} --body "🎉 **Pipeline Completo!** PR criado e issue movida para Done."
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "done"
           npx ts-node scripts/move-card.ts "done"
 
       - name: Falha -> Volta para DEV
@@ -221,15 +271,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ needs.detect-stage.outputs.issue_number }}
         run: |
           CI_LOG=$(cat ci_output.txt)
-          gh issue comment ${{ github.event.issue.number }} --body "❌ **CI Falhou (Lint/Integrado).** Retornando para Dev para correção.
+          gh issue comment ${{ needs.detect-stage.outputs.issue_number }} --body "❌ **CI Falhou (Lint/Integrado).** Retornando para Dev para correção.
           <details><summary>Log do Erro</summary>
 
           \`\`\`
           $CI_LOG
           \`\`\`
           </details>"
-          gh issue edit ${{ github.event.issue.number }} --remove-label "pr"
+          gh issue edit ${{ needs.detect-stage.outputs.issue_number }} --add-label "dev"
           npx ts-node scripts/move-card.ts "dev"
