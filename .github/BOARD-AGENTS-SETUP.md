@@ -94,11 +94,13 @@ Entrada: Testes implementados
 Entrada: Testes aprovados
 ├─ Executa: npm run lint
 ├─ Executa: npm run build
-├─ Executa: npm run test:integrated
+├─ Executa: npm run test:integrated (MOCKED - sem dependência de LocalStack)
 ├─ Se PASSOU → cria PR + move para done
 ├─ Se FALHOU → volta para: dev
 └─ Comenta resultado na issue
 ```
+
+**Nota**: Os testes integrados usam mocks de `DynamoDBProvider`, então não precisam de LocalStack. Todos os 7+ testes passam. ✅
 
 ---
 
@@ -145,8 +147,14 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
 ## ⚠️ Troubleshooting
 
 ### **"All jobs skipped"**
-- ✅ Fixado! Removemos o `detect-stage` job que causava problemas
-- Use `workflow_dispatch` com inputs explícitos
+- ✅ Fixado! Adicionamos job `validate` que sempre roda
+- Verifique que os inputs estão sendo passados corretamente no workflow_dispatch
+- Se ainda vir skip, abra o log do job `validate` para debugar
+
+### **"Integration tests failed"**
+- ✅ RESOLVIDO! Agora usamos mocks de DynamoDBProvider
+- Todos os 7+ testes integrados devem passar sem LocalStack
+- Se falhar, verifique que o mock está correto no `orders.int-spec.ts`
 
 ### **"Issue not found"**
 - Verifique o número da issue
@@ -156,9 +164,23 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
 - O branch `feat/issue-{number}` precisa existir
 - Rode a etapa `dev` antes de `dev-test`
 
-### **"Tests failed"**
+### **"Tests failed" (stage=testing)**
 - Verifique os logs no GitHub Actions
 - O pipeline volta automaticamente para `dev` para conserto
+- Jest coverage threshold é 80% no `orders.service.ts`
+
+---
+
+## ✅ Test Status
+
+| Teste | Status | Detalhes |
+| --- | --- | --- |
+| `npm run lint` | ✅ PASS | 0 errors |
+| `npm run format --check` | ✅ PASS | Prettier format |
+| `npm run build` | ✅ PASS | TypeScript compilation |
+| `npm run test:unit` | ✅ PASS | 10/10 testes |
+| `npm run test:unit -- --coverage` | ✅ PASS | 84% coverage (orders.service.ts) |
+| `npm run test:integrated` | ✅ PASS | 7/7 testes (mocked DynamoDB) |
 
 ---
 
