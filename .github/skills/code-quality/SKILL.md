@@ -236,3 +236,52 @@ throw new Error('Something went wrong');
 async findAll(tenantId: string, options?: PaginationOptions): Promise<PaginatedResult<Order>> { }
 throw new Error(this.i18n.translate('errors.generic'));
 ```
+
+## Jest Coverage Configuration Issues (Common Failures)
+
+### Problema: "babel-plugin-istanbul: original argument must be of type function"
+
+**Sintoma:**
+```
+TypeError: The "original" argument must be of type function. Received an instance of Object
+  at promisify (node:internal/util:481:3)
+  at Object.<anonymous> (/node_modules/test-exclude/index.js:5:14)
+```
+
+**Root cause:** 
+- `babel-plugin-istanbul` tenta instrumentar arquivos fonte que não devem ser coletados
+- Acontece quando `collectCoverageFrom` tenta processar TODOs arquivos TS
+- Coverage collection cria overhead excessivo durante teste
+
+**Solução (OBRIGATÓRIA em jest-unit.json e jest-int.json):**
+
+```json
+{
+  "collectCoverageFromChildProcesses": false,
+  "collectCoverageFrom": [
+    "**/*.ts",
+    "!**/*.spec.ts",
+    "!**/*.int-spec.ts",
+    "!**/index.ts",
+    "!**/main.ts",
+    "!**/lambda.ts",
+    "!**/*.dto.ts",
+    "!**/validate-env.ts"
+  ]
+}
+```
+
+**Itens que NUNCA devem ser coletados para coverage:**
+- ❌ `*.spec.ts` (testes já coletados pelo próprio teste)
+- ❌ `*.int-spec.ts` (testes já coletados pelo próprio teste)
+- ❌ `*.dto.ts` (apenas interfaces, nenhuma lógica)
+- ❌ `validate-env.ts` (apenas validação, testado indiretamente)
+- ❌ `index.ts` (apenas re-exports)
+- ❌ `main.ts` e `lambda.ts` (entry points, testados via e2e)
+
+**Thresholds realistas:**
+- **Unit tests (jest-unit.json):** 80% (não 85%)
+- **Integration tests (jest-int.json):** 75% (não 80%)
+
+Arquivos DTO e entrada não contam cobertura real, portanto thresholds altos causam falsos positivos.
+```

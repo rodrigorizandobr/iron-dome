@@ -55,10 +55,30 @@ npm run test:unit
 ```
 
 - **Deve passar**: 10/10 tests passing, coverage ≥ 85% on all metrics
-- **Se falhar**:
-  - Check test output: missing tests for new functions
-  - Add `*.spec.ts` files with mocked dependencies
-  - Increase coverage to 85%+
+- **Se falhar — Jest Coverage Error** (`babel-plugin-istanbul` issue):
+  - **Sintoma**: `TypeError: The "original" argument must be of type function`
+  - **Causa**: `jest-unit.json` tem `collectCoverageFrom` incorreto
+  - **Fix**: Verifique que jest-unit.json tem:
+    ```json
+    {
+      "collectCoverageFromChildProcesses": false,
+      "collectCoverageFrom": [
+        "**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.int-spec.ts",
+        "!**/index.ts",
+        "!**/main.ts",
+        "!**/lambda.ts",
+        "!**/*.dto.ts",
+        "!**/validate-env.ts"
+      ]
+    }
+    ```
+  - **Válida**: Rode `npm run test:unit -- --coverage` novamente
+- **Se falhar — Coverage Threshold**:
+  - Add `*.spec.ts` tests para novas functions
+  - Moque `DynamoDBProvider`, `I18nService`, `EventPublisher` em services
+  - Coverage deve estar ≥ 80% (unit) e 75% (integracao)
 
 ### ✅ 5. Integration Tests (80% Coverage)
 
