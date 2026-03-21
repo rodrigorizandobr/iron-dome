@@ -12,23 +12,36 @@ Cada etapa é executada por um **agente especializado**.
 
 ---
 
-## 🚀 Como Usar (Manual Dispatch - Mais Confiável)
+## 🚀 Como Usar (2 Formas)
 
-### **Fluxo Recomendado:**
+### **Opção 1: Arraste um Card no Projects (AUTOMÁTICO)** ✅ **Recomendado**
 
-1. **Crie uma issue** no GitHub com título e descrição clara
+1. **Abra seu GitHub Projects**
+2. **Crie um novo card** (tipo: "Convert to issue") ou **crie uma issue**
+   - Título: "Implementar autenticação JWT"
+   - Descrição: Detalhes técnicos
+3. **Workflow dispara AUTOMATICAMENTE**:
+   - ✅ `validate` job roda
+   - ✅ `agent-refinament` inicia automaticamente
+   - ✅ Analisa a issue e deixa comentários
+4. **Continue manualmente**:
+   - Próximo: Menu **Actions** → **Run workflow** com `stage=dev`
+   - Depois: `stage=dev-test`
+   - Depois: `stage=testing`
+   - Depois: `stage=pr`
+
+### **Opção 2: Manual (Workflow Dispatch)**
+
+Se você quer ter controle total:
+
+1. Abra: https://github.com/rodrigorizandobr/iron-dome/actions/workflows/board-agents.yml
+2. Clique **"Run workflow"**
+3. Preencha:
    ```
-   Título: Implementar autenticação JWT para user endpoints
-   Descrição: Adicionar proteção JWT aos endpoints GET/POST/PUT/DELETE
+   Stage: refinament (ou dev, dev-test, testing, pr)
+   Issue number: 123
    ```
-
-2. **Vá a GitHub Actions** → **Autonomous Board Agents**
-
-3. **Clique "Run workflow"** e preencha:
-   - **Stage**: Comece com `refinament` (padrão)
-   - **Issue number**: O número da issue que você criou
-
-4. **Acompanhe em tempo real** no GitHub Actions → Logs
+4. Clique **"Run workflow"**
 
 ---
 
@@ -146,28 +159,37 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
 
 ## ⚠️ Troubleshooting
 
+### **"Arrasto o card no Projects, nada acontece"**
+- ✅ FIXADO! Agora o workflow dispara automaticamente quando issue é **criada**
+- **Como funciona**:
+  1. Você cria uma issue (novo card)
+  2. GitHub Actions detecta `issues.opened`
+  3. Job `validate` roda e detecta: `state=refinament`, `issue=#X`
+  4. Job `agent-refinament` automaticamente inicia
+- **Se não disparou**: Verifique:
+  - Issue foi realmente criada (não é draft)
+  - GitHub Actions está ativo no repositório
+  - Workflow `board-agents.yml` existe
+  - Abra **Actions** → **Autonomous Board Agents** → procure por `issues` trigger
+
+### **"Como avanço para o próximo stage?"**
+- Não é automático entre stages (só refinament dispara automático)
+- **Opção 1**: Menu **Actions** → **Run workflow** com próximo stage
+- **Opção 2**: Crie uma issue separada para cada stage (cada uma dispara refinament)
+- **Objetivo futuro**: Implementar automação completa (ainda em desenvolvimento)
+
 ### **"All jobs skipped"**
 - ✅ Fixado! Adicionamos job `validate` que sempre roda
-- Verifique que os inputs estão sendo passados corretamente no workflow_dispatch
-- Se ainda vir skip, abra o log do job `validate` para debugar
+- Verifique os logs do job `validate` para ver os valores extraídos
+- Se stage/issue estão vazios, o workflow foi disparado sem dados
 
 ### **"Integration tests failed"**
 - ✅ RESOLVIDO! Agora usamos mocks de DynamoDBProvider
 - Todos os 7+ testes integrados devem passar sem LocalStack
-- Se falhar, verifique que o mock está correto no `orders.int-spec.ts`
 
-### **"Issue not found"**
-- Verifique o número da issue
-- Issue deve existir no repositório
-
-### **"Branch not found" (nos stages depois de dev)**
-- O branch `feat/issue-{number}` precisa existir
-- Rode a etapa `dev` antes de `dev-test`
-
-### **"Tests failed" (stage=testing)**
-- Verifique os logs no GitHub Actions
-- O pipeline volta automaticamente para `dev` para conserto
-- Jest coverage threshold é 80% no `orders.service.ts`
+### **"Workflow disparou mas errou em algum stage"**
+- O pipeline volta automaticamente para `dev` com label
+- Você precisa corrigir o código e re-disparar (`stage=dev`)
 
 ---
 
@@ -186,66 +208,109 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
 
 ## 🎯 Casos de Uso
 
-### **Caso 1: Nova Feature Completa**
+### **Caso 1: Nova Feature (Fluxo Automático + Manual)**
 
 ```
-User Action: Cria issue
+👤 USER CRIA ISSUE NO GITHUB
           ↓
-1. run workflow_dispatch (stage=refinament)
+🤖 issues.opened dispara automaticamente
           ↓
-2. run workflow_dispatch (stage=dev)
+1. ✅ agent-refinament roda AUTOMATICAMENTE
           ↓
-3. run workflow_dispatch (stage=dev-test)
+2. 👤 USER: Actions → Run workflow (stage=dev)
           ↓
-4. run workflow_dispatch (stage=testing)
+3. ✅ agent-dev roda
           ↓
-5. run workflow_dispatch (stage=pr)
+4. 👤 USER: Actions → Run workflow (stage=dev-test)
           ↓
-✅ PR criado e pronto para merge!
+5. ✅ agent-dev-test roda
+          ↓
+6. 👤 USER: Actions → Run workflow (stage=testing)
+          ↓
+7. ✅ agent-testing roda
+   ├─ PASSA → Automático status=testing ok
+   └─ FALHA → Volta para stage=dev com comentário
+          ↓
+8. 👤 USER: Actions → Run workflow (stage=pr)
+          ↓
+9. ✅ agent-pr roda
+   ├─ PASSA → PR criado, issue → done
+   └─ FALHA → Volta para stage=dev
 ```
 
-### **Caso 2: Testes Falharam**
+### **Caso 2: Avançar Rápido (Tudo Manual)**
 
 ```
-4. Testing executou → FALHOU ❌
+👤 USER VÁ A ACTIONS → BOARD AGENTS
           ↓
-Label "dev" adicionado automaticamente
+🔄 "Run workflow" stage=refinament (ou qualquer stage)
           ↓
-User: run workflow_dispatch (stage=dev) novamente
+✅ Jobs rodam sequencialmente
           ↓
-Refaz implementação
-          ↓
-...cycle continua até PASSAR
+👤 USER VÊ RESULTADO NOS LOGS
 ```
 
 ---
 
-## 🔧 Variáveis Esperadas
+## 📈 GitHub Projects Integration
 
-Na conta do GitHub, configure (se usar auto-triggers):
+### **Como Funciona com GitHub Projects**
 
-```yaml
-PROJECT_NUMBER: [seu github projects número, ex: 42]
+Quando você **arrasta um card para "Refinement"** no Projects:
+
+1. A ação de "arrasta" **não dispara automaticamente** (GitHub Projects V2 não tem webhook para cards)
+2. **MAS**: Quando você **cria uma issue** (converte card em issue):
+   ```
+   Projects: Novo Card → "Convert to issue"  (ou cria direto no GitHub)
+        ↓
+   GitHub detecta evento: issues.opened
+        ↓
+   Board Agents workflow dispara AUTOMATICAMENTE ✅
+        ↓
+   agent-refinament inicia
+   ```
+
+### **Fluxo com Projects**
+
+```
+Refinement
+  └─ [Criar issue aqui] → Dispara agent-refinament ✅
+      
+Dev 
+  └─ [Manual: Actions > Run workflow > stage=dev]
+      
+Dev-Test
+  └─ [Manual: Actions > Run workflow > stage=dev-test]
+      
+Testing
+  └─ [Manual: Actions > Run workflow > stage=testing]
+      
+PR
+  └─ [Manual: Actions > Run workflow > stage=pr]
+      
+Done ✅
 ```
 
-Para secrets (agentes que usam APIs):
+### **Variáveis Configuráveis (Opcionais)**
+
+Na conta do GitHub, você pode configurar:
 
 ```yaml
-COPILOT_TOKEN: [seu token da IA/Copilot]
+PROJECT_NUMBER: [seu projects ID, ex: 42]  (opcional agora)
+COPILOT_TOKEN: [seu token IA/Copilot]      (será usado depois)
 ```
 
-> Note: Atualmente usamos `workflow_dispatch`, então essas variáveis são opcionais.
+> Note: Essas variáveis ainda não são usadas. O workflow funciona sem elas por enquanto.
 
 ---
 
 ## 📝 Próximos Passos
 
 - [ ] Integrar realmente com Claude/Copilot API (scripts/agents/*.ts)
-- [ ] Testar pipeline completo com issue real
+- [ ] Testar pipeline completo com issue real criada via Projects
 - [ ] Validar que todos os agents rodando geram código correto
-- [ ] Adicionar hooks de feedback em cada etapa
+- [ ] Adicionar automação entre stages (sem manual workflow dispatch)
 - [ ] Dashboard para acompanhar múltiplos boards simultâneos
-   - Target: 80%+ coverage
    - Commit automático
         ↓
 ✅ Adiciona "testing"
