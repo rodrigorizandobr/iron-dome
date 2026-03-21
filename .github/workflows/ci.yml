@@ -6,59 +6,26 @@ on:
   pull_request:
     branches: [main, develop]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
-  security-audit:
-    name: Security Gate (Infrastructure)
+  ci:
+    name: CI Gate (Security + Quality + Tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - name: Use Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24.x'
+          node-version: '22.x'
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Production Security Audit (Strict)
-        run: npm audit --audit-level=high --only=prod
-      - name: Aesthetics Audit (Prettier)
-        run: npm run format -- --check
-      - name: Development Tooling Audit (Informative)
-        run: npm audit --audit-level=high --only=dev || true
+      - name: Run CI Gates (same as local npm run ci)
+        run: npm run ci
 
-  quality-assurance:
-    name: Logic Gate (Code Quality)
-    needs: [security-audit]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Use Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.x'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Logic auditing (ESLint)
-        run: npm run lint
-      - name: Production Build
-        run: npm run build
-      - name: Unit Tests & Coverage (v8 provider, module-specific baseline)
-        run: npm run test:unit -- --coverage
-      - name: Integrated Tests (No coverage — ESM + v8 incompatible)
-        run: npm run test:integrated
-        continue-on-error: true
-        # ℹ️ Integration tests require LocalStack running locally
-        # Failures in CI are informational (no LocalStack available)
-
-  # Model for Deployment step
+  # Deployment step
   deploy:
-    needs: [security-audit, quality-assurance]
+    needs: [ci]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Production
-        run: echo "Standard deployment flow would go here (e.g., AWS ECS, Lambda, Vercel)"
+        run: echo "Standard deployment flow would go here (e.g., AWS Lambda)"

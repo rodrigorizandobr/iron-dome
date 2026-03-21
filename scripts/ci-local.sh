@@ -3,8 +3,9 @@
 # CI Local — Roda os mesmos gates do GitHub Actions CI/CD Pipeline
 # =============================================================================
 # Uso: npm run ci
+# Usado também pelo GitHub Actions (.github/workflows/ci.yml)
 # =============================================================================
-set -euo pipefail
+set -uo pipefail  # sem -e: continua mesmo com falhas para mostrar todos os erros
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
