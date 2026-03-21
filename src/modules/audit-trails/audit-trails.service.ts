@@ -119,14 +119,20 @@ export class AuditTrailsService {
       SK: { S: sk },
     };
 
-    const result = await this.dynamo.getItem(this.tableName, key);
-    if (!result?.Item) {
+    try {
+      const result = await this.dynamo.getItem(this.tableName, key);
+      if (!result?.Item) {
+        throw new NotFoundException(
+          this.i18n.translate('errors.not_found', { model: AUDIT_ENTITY, id }),
+        );
+      }
+      const raw = unmarshall(result.Item) as Record<string, unknown>;
+      return this.toResponse(raw);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       throw new NotFoundException(
         this.i18n.translate('errors.not_found', { model: AUDIT_ENTITY, id }),
       );
     }
-
-    const raw = unmarshall(result.Item) as Record<string, unknown>;
-    return this.toResponse(raw);
   }
 }
