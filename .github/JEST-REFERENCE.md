@@ -313,20 +313,32 @@ import request from 'supertest';
 ### Running Integration Tests Locally
 
 ```bash
-npm run test:integrated              # Uses NODE_OPTIONS flag, no errors
-npm run test:integrated -- --coverage # Collect coverage with v8
+npm run test:integrated              # ESM + NODE_OPTIONS, no coverage collection
 ```
+
+**Why NO coverage for integration tests?**
+
+Integration tests do NOT collect coverage because:
+- ❌ ESM + v8 coverage + dynamic imports = complex configuration
+- ❌ Integration tests often fail (external systems, LocalStack)
+- ❌ Coverage on partial test results is misleading
+- ✅ Unit tests already provide good coverage metrics
+- ✅ Integration tests verify end-to-end behavior, not code paths
+
+If you need coverage metrics, use `npm run test:unit -- --coverage` instead.
 
 **Expected output:**
 
 ```
 Test Suites: 1 failed, 1 total  # May fail on data operations (DynamoDB setup)
-Tests:       4 passed, 3 failed  # Auth tests pass, data tests may fail without LocalStack
+Tests:       4 passed, 3 failed  # Auth tests pass, data tests need LocalStack
 No vm-modules or ESM errors
+No coverage collection
 ```
 
 ---
 
-**Status**: ✅ ESM + v8 provider fully working  
+**Status**: ✅ ESM + v8 provider fully working (unit tests)  
+**Integration tests**: No coverage (expected behavior)  
 **Last verified**: March 21, 2026  
 **Prerequisites**: NODE_OPTIONS flag + ESM imports in test files

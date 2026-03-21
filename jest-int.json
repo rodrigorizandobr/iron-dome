@@ -19,26 +19,6 @@
   "transform": {
     "^.+\\.(t|j)s$": ["ts-jest", { "useESM": true }]
   },
-  "collectCoverage": false,
-  "coverageProvider": "v8",
-  "collectCoverageFrom": [
-    "**/*.ts",
-    "!**/*.spec.ts",
-    "!**/*.int-spec.ts",
-    "!**/index.ts",
-    "!**/main.ts",
-    "!**/lambda.ts",
-    "!**/*.dto.ts",
-    "!**/validate-env.ts"
-  ],
-  "coveragePathIgnorePatterns": [
-    "/node_modules/",
-    "/.next/",
-    "/dist/",
-    "\\.spec\\.ts$",
-    "\\.int-spec\\.ts$"
-  ],
-  "coverageDirectory": "../coverage/integration",
   "testEnvironment": "node",
   "coverageThreshold": {}
 }
