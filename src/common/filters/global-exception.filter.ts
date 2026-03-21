@@ -31,20 +31,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const message =
       exception instanceof HttpException
         ? exception.getResponse()
-        // eslint-disable-next-line i18next/no-literal-string
-        : 'Internal server error';
+        : // eslint-disable-next-line i18next/no-literal-string
+          'Internal server error';
 
     const tenantId = (request as Request & { tenantId?: string }).tenantId;
-    const resolvedMessage = typeof message === 'string'
-      ? message
-      : (message as Record<string, unknown>)?.message ?? message;
+    const resolvedMessage =
+      typeof message === 'string'
+        ? message
+        : ((message as Record<string, unknown>)?.message ?? message);
 
     const errorBody = {
       statusCode: status,
@@ -56,7 +55,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
 
     if (status >= 500) {
-      const safeBody = this.obfuscationService.obfuscate(errorBody as unknown as Record<string, unknown>) as Record<string, unknown>;
+      const safeBody = this.obfuscationService.obfuscate(
+        errorBody as unknown as Record<string, unknown>,
+      ) as Record<string, unknown>;
       this.logger.error(`[${request.method}] ${JSON.stringify(safeBody)}`);
       this.writeToErrorFile(safeBody);
     }

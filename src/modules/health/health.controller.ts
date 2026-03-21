@@ -33,7 +33,10 @@ export class HealthController {
   @Get('ready')
   @ApiOperation({ summary: 'Readiness check with dependency verification' })
   @ApiResponse({ status: HttpStatus.OK, description: 'All dependencies healthy' })
-  @ApiResponse({ status: HttpStatus.SERVICE_UNAVAILABLE, description: 'One or more dependencies unhealthy' })
+  @ApiResponse({
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    description: 'One or more dependencies unhealthy',
+  })
   async getReady(): Promise<IReadinessResponse> {
     const dynamoOk = await this.dynamoDBProvider.checkHealth();
 

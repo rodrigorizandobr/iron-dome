@@ -1,11 +1,12 @@
 ---
-name: "Code Quality Standards"
-description: "Skill para garantir qualidade de código corporativa. Cobre limites de linhas/complexidade, ESLint config, JSDoc, ZERO warnings, cobertura de testes, convenções de nomenclatura, e idioma (código inglês, mensagens via i18n)."
+name: 'Code Quality Standards'
+description: 'Skill para garantir qualidade de código corporativa. Cobre limites de linhas/complexidade, ESLint config, JSDoc, ZERO warnings, cobertura de testes, convenções de nomenclatura, e idioma (código inglês, mensagens via i18n).'
 ---
 
 # Skill: Code Quality Standards
 
 ## Quando usar esta skill
+
 - Ao criar um **novo arquivo** (service, controller, provider, filter, etc).
 - Ao revisar se um arquivo segue os padrões de qualidade.
 - Ao configurar ou debugar **ESLint**.
@@ -16,19 +17,19 @@ description: "Skill para garantir qualidade de código corporativa. Cobre limite
 
 ### 1. Limites por Arquivo
 
-| Métrica                  | Limite   | Enforcement          |
-|--------------------------|----------|----------------------|
-| Linhas por arquivo       | **200**  | ESLint `max-lines`   |
-| Complexidade cognitiva   | **15**   | SonarJS              |
-| Funções duplicadas       | **0**    | SonarJS              |
-| Warnings no lint         | **0**    | CI pipeline          |
+| Métrica                | Limite  | Enforcement        |
+| ---------------------- | ------- | ------------------ |
+| Linhas por arquivo     | **200** | ESLint `max-lines` |
+| Complexidade cognitiva | **15**  | SonarJS            |
+| Funções duplicadas     | **0**   | SonarJS            |
+| Warnings no lint       | **0**   | CI pipeline        |
 
 ### 2. Cobertura de Testes
 
-| Tipo             | Mínimo  | Config                  |
-|------------------|---------|-------------------------|
-| Unitários        | **85%** | `jest-unit.json`        |
-| Integrados       | **80%** | `jest-int.json`         |
+| Tipo       | Mínimo  | Config           |
+| ---------- | ------- | ---------------- |
+| Unitários  | **85%** | `jest-unit.json` |
+| Integrados | **80%** | `jest-int.json`  |
 
 Configuração em `jest-unit.json`:
 
@@ -47,25 +48,25 @@ Configuração em `jest-unit.json`:
 
 ### 3. Idioma
 
-| Contexto                        | Idioma     |
-|---------------------------------|------------|
-| Código (variáveis, classes)     | **Inglês** |
-| Comentários e JSDoc             | **Inglês** |
-| Mensagens ao usuário            | **i18n** (via `I18nService`) |
-| Commits                         | **Inglês** |
-| Documentação                    | **Inglês** (com tradução pt-BR se necessário) |
+| Contexto                    | Idioma                                        |
+| --------------------------- | --------------------------------------------- |
+| Código (variáveis, classes) | **Inglês**                                    |
+| Comentários e JSDoc         | **Inglês**                                    |
+| Mensagens ao usuário        | **i18n** (via `I18nService`)                  |
+| Commits                     | **Inglês**                                    |
+| Documentação                | **Inglês** (com tradução pt-BR se necessário) |
 
 ## ESLint Configuration (`eslint.config.mjs`)
 
 ### Plugins ativos
 
-| Plugin          | Propósito                                 |
-|-----------------|-------------------------------------------|
+| Plugin              | Propósito                             |
+| ------------------- | ------------------------------------- |
 | `typescript-eslint` | Type strictness                       |
-| `i18next`       | Bloqueia strings literais user-facing     |
-| `no-secrets`    | Detecta segredos hardcoded                |
-| `sonarjs`       | Complexidade e duplicação                 |
-| `prettier`      | Formatação consistente                    |
+| `i18next`           | Bloqueia strings literais user-facing |
+| `no-secrets`        | Detecta segredos hardcoded            |
+| `sonarjs`           | Complexidade e duplicação             |
+| `prettier`          | Formatação consistente                |
 
 ### Regras críticas
 
@@ -100,7 +101,7 @@ Configuração em `jest-unit.json`:
 
 Todo método público DEVE ter JSDoc com `@param`, `@returns`, e `@example` (quando relevante):
 
-```typescript
+````typescript
 /**
  * Creates a new order for the specified tenant.
  *
@@ -119,11 +120,11 @@ Todo método público DEVE ter JSDoc com `@param`, `@returns`, e `@example` (qua
 async create(data: CreateOrderDto): Promise<Order> {
   // ...
 }
-```
+````
 
 ### Classes e Interfaces
 
-```typescript
+````typescript
 /**
  * AWS DynamoDB Provider for CRUD operations.
  * Extends BaseProvider for standardized naming and logging.
@@ -135,38 +136,38 @@ async create(data: CreateOrderDto): Promise<Order> {
  * ```
  */
 @Injectable()
-export class DynamoDBProvider extends BaseProvider { }
-```
+export class DynamoDBProvider extends BaseProvider {}
+````
 
 ## Convenções de Nomenclatura
 
 ### Arquivos
 
-| Tipo        | Padrão                       | Exemplo                      |
-|-------------|------------------------------|------------------------------|
-| Module      | `[name].module.ts`           | `orders.module.ts`           |
-| Controller  | `[name].controller.ts`       | `orders.controller.ts`       |
-| Service     | `[name].service.ts`          | `orders.service.ts`          |
-| Provider    | `[name].provider.ts`         | `dynamodb.provider.ts`       |
-| Filter      | `[name].filter.ts`           | `global-exception.filter.ts` |
-| Middleware  | `[name].middleware.ts`       | `multi-tenancy.middleware.ts` |
-| Test Unit   | `[name].spec.ts`             | `orders.service.spec.ts`     |
-| Test Int    | `[name].int-spec.ts`         | `orders.int-spec.ts`         |
-| Event Pub   | `[name]-event.publisher.ts`  | `order-event.publisher.ts`   |
-| SQS Proc    | `[name]-processor.service.ts`| `order-processor.service.ts` |
-| Response DTO| `[name]-response.dto.ts`     | `order-response.dto.ts`      |
+| Tipo         | Padrão                        | Exemplo                       |
+| ------------ | ----------------------------- | ----------------------------- |
+| Module       | `[name].module.ts`            | `orders.module.ts`            |
+| Controller   | `[name].controller.ts`        | `orders.controller.ts`        |
+| Service      | `[name].service.ts`           | `orders.service.ts`           |
+| Provider     | `[name].provider.ts`          | `dynamodb.provider.ts`        |
+| Filter       | `[name].filter.ts`            | `global-exception.filter.ts`  |
+| Middleware   | `[name].middleware.ts`        | `multi-tenancy.middleware.ts` |
+| Test Unit    | `[name].spec.ts`              | `orders.service.spec.ts`      |
+| Test Int     | `[name].int-spec.ts`          | `orders.int-spec.ts`          |
+| Event Pub    | `[name]-event.publisher.ts`   | `order-event.publisher.ts`    |
+| SQS Proc     | `[name]-processor.service.ts` | `order-processor.service.ts`  |
+| Response DTO | `[name]-response.dto.ts`      | `order-response.dto.ts`       |
 
 ### Classes
 
-| Tipo        | Padrão                       | Exemplo                      |
-|-------------|------------------------------|------------------------------|
-| Module      | `[Name]Module`               | `OrdersModule`               |
-| Controller  | `[Name]Controller`           | `OrdersController`           |
-| Service     | `[Name]Service`              | `OrdersService`              |
-| Provider    | `[Name]Provider`             | `DynamoDBProvider`           |
-| Filter      | `[Name]Filter`               | `GlobalExceptionFilter`      |
-| Middleware  | `[Name]Middleware`            | `MultiTenancyMiddleware`     |
-| Interface   | `I[Name]`                    | `IBaseResource`              |
+| Tipo       | Padrão             | Exemplo                  |
+| ---------- | ------------------ | ------------------------ |
+| Module     | `[Name]Module`     | `OrdersModule`           |
+| Controller | `[Name]Controller` | `OrdersController`       |
+| Service    | `[Name]Service`    | `OrdersService`          |
+| Provider   | `[Name]Provider`   | `DynamoDBProvider`       |
+| Filter     | `[Name]Filter`     | `GlobalExceptionFilter`  |
+| Middleware | `[Name]Middleware` | `MultiTenancyMiddleware` |
+| Interface  | `I[Name]`          | `IBaseResource`          |
 
 ### Variáveis e métodos
 

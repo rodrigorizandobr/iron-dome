@@ -1,17 +1,19 @@
 ---
-name: "Soft-Delete Universal"
-description: "Skill para implementar e validar soft-delete em toda a aplicação. Nunca deletar dados fisicamente. Usa atributo `deleted: true` com `updatedAt` timestamp. Todos os reads filtram registros deletados automaticamente."
+name: 'Soft-Delete Universal'
+description: 'Skill para implementar e validar soft-delete em toda a aplicação. Nunca deletar dados fisicamente. Usa atributo `deleted: true` com `updatedAt` timestamp. Todos os reads filtram registros deletados automaticamente.'
 ---
 
 # Skill: Soft-Delete Universal
 
 ## Quando usar esta skill
+
 - Ao criar uma **nova entidade** ou revisar uma existente.
 - Ao implementar um endpoint `DELETE`.
 - Ao verificar se queries filtram registros soft-deleted.
 - Ao debugar dados que "sumiram" mas existem no DynamoDB.
 
 ## Princípio Central
+
 > **NUNCA** delete dados fisicamente. Soft-delete é a única operação de remoção permitida.
 
 ## Como funciona
@@ -19,7 +21,7 @@ description: "Skill para implementar e validar soft-delete em toda a aplicação
 ### Atributos automáticos em todo item
 
 | Atributo    | Tipo      | Valor no Create | Valor no Update | Valor no Remove |
-|-------------|-----------|-----------------|-----------------|-----------------|
+| ----------- | --------- | --------------- | --------------- | --------------- |
 | `deleted`   | `boolean` | `false`         | inalterado      | `true`          |
 | `createdAt` | `string`  | ISO timestamp   | inalterado      | inalterado      |
 | `updatedAt` | `string`  | ISO timestamp   | ISO timestamp   | ISO timestamp   |
@@ -133,7 +135,8 @@ async restore(tenantId: string, id: string): Promise<T> {
 describe('Soft-Delete', () => {
   it('should mark item as deleted instead of removing', async () => {
     const created = await service.create({
-      tenantId: 'tenant-A', name: 'Test',
+      tenantId: 'tenant-A',
+      name: 'Test',
     });
     const removed = await service.remove('tenant-A', created.id);
 
@@ -155,8 +158,7 @@ describe('Soft-Delete', () => {
     const created = await service.create({ tenantId: 'tenant-A', name: 'Test' });
     await service.remove('tenant-A', created.id);
 
-    await expect(service.findOne('tenant-A', created.id))
-      .rejects.toThrow(NotFoundException);
+    await expect(service.findOne('tenant-A', created.id)).rejects.toThrow(NotFoundException);
   });
 });
 ```

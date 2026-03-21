@@ -40,12 +40,7 @@ export default tseslint.config(
           mode: 'all',
           'should-validate-template': true,
           words: {
-            exclude: [
-              '[0-9!-/:-@\\[-`{-~]+',
-              '[A-Z_-]+',
-              'dummy',
-              'pt-BR',
-            ],
+            exclude: ['[0-9!-/:-@\\[-`{-~]+', '[A-Z_-]+', 'dummy', 'pt-BR'],
           },
           callees: {
             exclude: [

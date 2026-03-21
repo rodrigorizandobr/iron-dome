@@ -39,10 +39,12 @@ async function seed() {
       deleted: false,
     };
 
-    await client.send(new PutItemCommand({
-      TableName: TABLE_NAME,
-      Item: marshall(item),
-    }));
+    await client.send(
+      new PutItemCommand({
+        TableName: TABLE_NAME,
+        Item: marshall(item),
+      }),
+    );
 
     console.log(`  ✓ ${order.id} — ${order.productName}`);
   }

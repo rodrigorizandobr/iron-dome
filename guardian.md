@@ -7,38 +7,46 @@
 ## Architecture Rules
 
 ### Stack
+
 - **Framework**: NestJS (Strict TypeScript, CommonJS).
 - **Database**: ONLY DynamoDB (Single Table Design). NO PostgreSQL. NO Prisma. NO relational ORMs.
 - **Infrastructure**: Terraform (`infra/terraform/main.tf`). LocalStack for local dev.
 - **AI**: OpenAI GPT-4 via `OpenAIProvider`.
 
 ### AWS Resource Naming (Corporate Standard)
+
 Pattern: `[ENV]-[DOMAIN]-[SUBDOMAIN]-[RESOURCE_TYPE]-[FUNCTIONAL_NAME]`
+
 - **Implementation**: `BaseProvider.getResourceName(type, functionalName)`
 - **Enums**: `AppEnvironment` (dev, hml, sandbox, prd) and `AppServiceType` (api, worker, job, frontend)
 - **Rule**: Terraform and NestJS code MUST generate identical names.
 
 ### Provider Design
+
 - Every AWS/external provider MUST extend `BaseProvider`.
 - Constructor MUST receive `ConfigService` and pass it to `super(Name, configService)`.
 - Use `this.logOperation()` and `this.handleError()` for standardized logging/errors.
 
 ### Data Layer
+
 - Use `BaseResourceService` for all CRUD operations.
 - PK: `TENANT#[tenantId]#[ENTITY]`, SK: `[ENTITY]#[id]`.
 - GSI1: `entityType` + `SK` for cross-tenant admin queries.
 - Soft-delete ONLY (`deleted: true`). NEVER physically delete.
 
 ### Multi-Tenancy
+
 - Header `x-tenant-id` extracted by `MultiTenancyMiddleware`.
 - Every `create()` requires `tenantId`. Missing it → `BadRequestException`.
 
 ### i18n (Internationalization)
+
 - Use `I18nService.translate(key, args)` for ALL user-facing messages.
 - Catalogs: `src/common/i18n/pt-BR.json` (default) and `src/common/i18n/en.json`.
 - Detection via `Accept-Language` header.
 
 ### Security & Audit
+
 - Use `ObfuscationService.obfuscate(obj)` BEFORE logging any object.
 - Sensitive fields: password, secret, token, key, auth, credit_card, cvv, cpf, rg, document.
 - Use AWS Secrets Manager for credentials. NEVER hardcode secrets.

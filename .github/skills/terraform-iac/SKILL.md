@@ -1,17 +1,19 @@
 ---
-name: "Terraform IaC"
-description: "Skill para definir e manter infraestrutura AWS via Terraform. Cobre nomenclatura corporativa no HCL, alinhamento com o código NestJS, LocalStack para dev local, e padrões de recursos (DynamoDB, S3, SQS, SNS, Lambda)."
+name: 'Terraform IaC'
+description: 'Skill para definir e manter infraestrutura AWS via Terraform. Cobre nomenclatura corporativa no HCL, alinhamento com o código NestJS, LocalStack para dev local, e padrões de recursos (DynamoDB, S3, SQS, SNS, Lambda).'
 ---
 
 # Skill: Terraform IaC (Infrastructure as Code)
 
 ## Quando usar esta skill
+
 - Ao criar um **novo recurso AWS** (tabela, bucket, fila, tópico, lambda, secret).
 - Ao modificar ou revisar `infra/terraform/main.tf`.
 - Ao verificar se a infra está **alinhada** com o código NestJS.
 - Ao configurar **LocalStack** para desenvolvimento local.
 
 ## Princípio Central
+
 > Se não está no Terraform, não existe. Toda infraestrutura é definida em `infra/terraform/main.tf`.
 
 ## Estrutura do Terraform
@@ -40,12 +42,12 @@ locals {
 
 ### Alinhamento com NestJS
 
-| Terraform | NestJS (BaseProvider) |
-|-----------|----------------------|
-| `var.env` | `AppEnvironment` enum (`dev`, `hml`, `sandbox`, `prd`) |
-| `var.domain` | `ConfigService.get('APP_DOMAIN')` |
-| `var.subdomain` | `ConfigService.get('APP_SUBDOMAIN')` |
-| `local.resource_prefix` | `BaseProvider.getResourceName(type, name)` |
+| Terraform               | NestJS (BaseProvider)                                  |
+| ----------------------- | ------------------------------------------------------ |
+| `var.env`               | `AppEnvironment` enum (`dev`, `hml`, `sandbox`, `prd`) |
+| `var.domain`            | `ConfigService.get('APP_DOMAIN')`                      |
+| `var.subdomain`         | `ConfigService.get('APP_SUBDOMAIN')`                   |
+| `local.resource_prefix` | `BaseProvider.getResourceName(type, name)`             |
 
 **Resultado**: O nome gerado no Terraform é IDÊNTICO ao nome usado no código.
 
@@ -76,6 +78,7 @@ resource "aws_dynamodb_table" "main_table" {
 ```
 
 **Regras DynamoDB**:
+
 - Sempre `PAY_PER_REQUEST` (serverless).
 - Sempre PK (String) + SK (String).
 - GSI1 para queries cross-entity.
@@ -105,6 +108,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "storage_encryptio
 ```
 
 **Regras S3**:
+
 - Versionamento habilitado.
 - Encriptação server-side (AES256 ou KMS).
 - Tags obrigatórias.
@@ -127,6 +131,7 @@ resource "aws_sqs_queue" "order_processor_dlq" {
 ```
 
 **Regras SQS**:
+
 - Dead Letter Queue (DLQ) para cada fila principal.
 - `visibility_timeout_seconds` alinhado com o tempo de processamento.
 - Tags obrigatórias.
@@ -148,6 +153,7 @@ resource "aws_sns_topic_subscription" "order_events_to_sqs" {
 ```
 
 **Regras SNS**:
+
 - Todo módulo com CUD publica eventos no seu SNS topic.
 - Fan-out via `aws_sns_topic_subscription` para SQS.
 - Tags obrigatórias.
@@ -163,6 +169,7 @@ resource "aws_cloudwatch_log_group" "api_logs" {
 ```
 
 **Regras CloudWatch**:
+
 - Retention obrigatório (30 dias dev, 90 dias prd).
 - Tags obrigatórias.
 
@@ -227,6 +234,7 @@ resource "aws_iam_role_policy" "lambda_app_policy" {
 ```
 
 **Regras IAM**:
+
 - Princípio do menor privilégio.
 - Referências cruzadas a recursos já definidos (ARNs).
 - Tags obrigatórias.
@@ -257,6 +265,7 @@ resource "aws_lambda_function" "api_handler" {
 ```
 
 **Regras Lambda**:
+
 - Handler aponta para `dist/lambda.handler` (NestJS via `@codegenie/serverless-express`).
 - Runtime `nodejs22.x`.
 - Env vars incluem naming variables para `BaseProvider.getResourceName()`.
@@ -301,6 +310,7 @@ resource "aws_lambda_permission" "apigw_invoke" {
 ```
 
 **Regras API Gateway**:
+
 - HTTP API (v2), não REST API (v1).
 - `$default` route catch-all para NestJS routing.
 - Lambda permission para invocação pelo API GW.
@@ -315,7 +325,7 @@ services:
   localstack:
     image: localstack/localstack
     ports:
-      - "4566:4566"
+      - '4566:4566'
     environment:
       - SERVICES=dynamodb,s3,sqs,sns,lambda,secretsmanager
       - DEFAULT_REGION=us-east-1

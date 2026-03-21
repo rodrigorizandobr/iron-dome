@@ -1,17 +1,19 @@
 ---
-name: "Internationalization (i18n)"
-description: "Skill para implementar internacionalização em toda a aplicação. Cobre I18nService, catálogos JSON, detecção de idioma por header, plugin ESLint i18next, e boas práticas para mensagens user-facing."
+name: 'Internationalization (i18n)'
+description: 'Skill para implementar internacionalização em toda a aplicação. Cobre I18nService, catálogos JSON, detecção de idioma por header, plugin ESLint i18next, e boas práticas para mensagens user-facing.'
 ---
 
 # Skill: Internationalization (i18n)
 
 ## Quando usar esta skill
+
 - Ao criar **qualquer mensagem voltada ao usuário** (erros, validações, notificações).
 - Ao adicionar **novas chaves** nos catálogos de tradução.
 - Ao criar um novo **módulo/service** que retorna mensagens.
 - Ao configurar ou debugar o plugin ESLint `i18next/no-literal-string`.
 
 ## Princípio Central
+
 > Toda mensagem voltada ao usuário DEVE usar `I18nService.translate(key, args)`. Strings literais em código são apenas para logging e infraestrutura.
 
 ## Arquitetura
@@ -54,6 +56,7 @@ const message = this.i18n.translate('errors.not_found', {
 ### 2. Catálogos JSON
 
 **`src/common/i18n/en.json`**:
+
 ```json
 {
   "WELCOME": "Welcome to Boilerplate",
@@ -71,6 +74,7 @@ const message = this.i18n.translate('errors.not_found', {
 ```
 
 **`src/common/i18n/pt-BR.json`**:
+
 ```json
 {
   "WELCOME": "Bem-vindo ao Boilerplate",
@@ -176,9 +180,7 @@ throw new BadRequestException(`Order ${id} not found`);
 // en.json tem a chave, pt-BR.json não
 
 // ✅ CORRETO: Sempre via i18n
-throw new BadRequestException(
-  this.i18n.translate('errors.not_found', { model: 'ORDER', id })
-);
+throw new BadRequestException(this.i18n.translate('errors.not_found', { model: 'ORDER', id }));
 ```
 
 ## Testes

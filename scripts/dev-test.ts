@@ -24,10 +24,14 @@ async function run() {
     moddedFilesOutput = execSync('git show --name-only --format="" HEAD', { encoding: 'utf-8' });
   }
 
-  const files = moddedFilesOutput.split('\n').filter(f => f.trim() !== '' && f.endsWith('.ts') && !f.endsWith('.spec.ts'));
+  const files = moddedFilesOutput
+    .split('\n')
+    .filter((f) => f.trim() !== '' && f.endsWith('.ts') && !f.endsWith('.spec.ts'));
 
   if (files.length === 0) {
-    console.log('Nenhum arquivo TypeScript de código fonte encontrado para testar. Encerrando agente de testes.');
+    console.log(
+      'Nenhum arquivo TypeScript de código fonte encontrado para testar. Encerrando agente de testes.',
+    );
     process.exit(0);
   }
 
@@ -69,7 +73,10 @@ RETORNE APENAS UM JSON VÁLIDO. O formato DEVE ser um array de objetos:
   });
 
   let iaOutput = response.choices[0]?.message?.content || '[]';
-  iaOutput = iaOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+  iaOutput = iaOutput
+    .replace(/```json/g, '')
+    .replace(/```/g, '')
+    .trim();
 
   try {
     const testFiles = JSON.parse(iaOutput);
@@ -80,7 +87,10 @@ RETORNE APENAS UM JSON VÁLIDO. O formato DEVE ser um array de objetos:
       console.log(`✅ Arquivo de teste gerado: ${file.filePath}`);
     }
   } catch (error) {
-    console.error('Erro ao fazer o parse da resposta da IA. A resposta não era um JSON válido:', iaOutput);
+    console.error(
+      'Erro ao fazer o parse da resposta da IA. A resposta não era um JSON válido:',
+      iaOutput,
+    );
     process.exit(1);
   }
 }

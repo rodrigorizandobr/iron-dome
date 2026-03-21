@@ -1,9 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import {
-  SQSClient,
-  ReceiveMessageCommand,
-  DeleteMessageCommand,
-} from '@aws-sdk/client-sqs';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
 import { ConfigService } from '@nestjs/config';
 import { BaseProvider } from '../../providers/base.provider';
 

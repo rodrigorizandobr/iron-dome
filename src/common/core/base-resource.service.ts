@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
 import { I18nService } from './i18n.service';
@@ -67,9 +63,11 @@ export interface IPaginatedResult<T> {
 type DynamoAttributeValue = AttributeValue;
 
 @Injectable()
-export abstract class BaseResourceService<T, CreateDto, UpdateDto>
-  implements IBaseResource<T, CreateDto, UpdateDto>
-{
+export abstract class BaseResourceService<T, CreateDto, UpdateDto> implements IBaseResource<
+  T,
+  CreateDto,
+  UpdateDto
+> {
   protected readonly tableName: string;
 
   constructor(
@@ -117,8 +115,8 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
       const errMsg = error instanceof Error ? error.message : String(error);
       const message = this.i18n
         ? this.i18n.translate('errors.create_failed', { model: this.entityName })
-        // eslint-disable-next-line i18next/no-literal-string
-        : `Error creating ${this.entityName}: ${errMsg}`;
+        : // eslint-disable-next-line i18next/no-literal-string
+          `Error creating ${this.entityName}: ${errMsg}`;
       throw new BadRequestException(message);
     }
   }
@@ -134,8 +132,8 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
     if (!result || !result.Item) {
       const message = this.i18n
         ? this.i18n.translate('errors.not_found', { model: this.entityName, id })
-        // eslint-disable-next-line i18next/no-literal-string
-        : `${this.entityName} with ID ${id} not found`;
+        : // eslint-disable-next-line i18next/no-literal-string
+          `${this.entityName} with ID ${id} not found`;
       throw new NotFoundException(message);
     }
 
@@ -143,8 +141,8 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
     if (item.deleted) {
       const msg = this.i18n
         ? this.i18n.translate('errors.not_found', { model: this.entityName, id })
-        // eslint-disable-next-line i18next/no-literal-string
-        : `${this.entityName} with ID ${id} not found`;
+        : // eslint-disable-next-line i18next/no-literal-string
+          `${this.entityName} with ID ${id} not found`;
       throw new NotFoundException(msg);
     }
 
@@ -154,7 +152,10 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
   async findAll(tenantId: string, options?: IPaginationOptions): Promise<IPaginatedResult<T>> {
     const pk = this.getPk(tenantId);
     try {
-      const queryOptions: { limit?: number; exclusiveStartKey?: Record<string, DynamoAttributeValue> } = {};
+      const queryOptions: {
+        limit?: number;
+        exclusiveStartKey?: Record<string, DynamoAttributeValue>;
+      } = {};
 
       if (options?.limit) {
         queryOptions.limit = options.limit;
@@ -169,9 +170,9 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
 
       if (!result || !result.Items) return { items: [] };
 
-      const items = result.Items
-        .map((item) => unmarshall(item) as Record<string, unknown>)
-        .filter((item) => !item.deleted) as unknown as T[];
+      const items = result.Items.map((item) => unmarshall(item) as Record<string, unknown>).filter(
+        (item) => !item.deleted,
+      ) as unknown as T[];
 
       const cursor = result.LastEvaluatedKey
         ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64')

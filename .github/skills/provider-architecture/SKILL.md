@@ -1,11 +1,12 @@
 ---
-name: "Provider Architecture"
-description: "Skill para criar novos Providers AWS ou externos seguindo o padrão corporativo. Cobre herança de BaseProvider, injeção de ConfigService, logging padronizado e naming automático."
+name: 'Provider Architecture'
+description: 'Skill para criar novos Providers AWS ou externos seguindo o padrão corporativo. Cobre herança de BaseProvider, injeção de ConfigService, logging padronizado e naming automático.'
 ---
 
 # Skill: Provider Architecture
 
 ## Quando usar esta skill
+
 - Ao criar um **novo provider AWS** (ex: EventBridge, Cognito, CloudWatch).
 - Ao criar um **provider externo** (ex: Stripe, Twilio, SendGrid).
 - Ao revisar se um provider existente segue a arquitetura padrão.
@@ -34,7 +35,7 @@ BaseProvider (abstract)
 
 ### Template
 
-```typescript
+````typescript
 import { Injectable } from '@nestjs/common';
 import { [CLIENT], [COMMAND] } from '@aws-sdk/client-[SERVICE]';
 import { ConfigService } from '@nestjs/config';
@@ -57,7 +58,7 @@ export class MyProvider extends BaseProvider {
     super(MyProvider.name, configService);
     //    ^^^^^^^^^^^^^^   ^^^^^^^^^^^^^
     //    Nome do Logger   Passa para BaseProvider
-    
+
     this.client = new [CLIENT]({
       region: this.configService.get<string>('AWS_REGION'),
       endpoint: this.configService.get<string>('AWS_ENDPOINT'),
@@ -81,7 +82,7 @@ export class MyProvider extends BaseProvider {
     }
   }
 }
-```
+````
 
 ### Checklist para novo Provider
 
@@ -97,15 +98,15 @@ export class MyProvider extends BaseProvider {
 
 ## Providers Existentes
 
-| Provider                 | Recurso AWS       | Métodos Helper                          |
-|--------------------------|-------------------|-----------------------------------------|
-| `DynamoDBProvider`       | DynamoDB          | `putItem`, `getItem`, `query`           |
-| `S3Provider`             | S3                | `getBucketName(functional)`             |
-| `SQSProvider`            | SQS               | `getQueueName(functional)`, `sendMessage` |
-| `SNSProvider`            | SNS               | `getTopicName(functional)`, `publish`   |
-| `SecretsManagerProvider` | Secrets Manager   | `getSecretName(functional)`, `getSecret`|
-| `CloudWatchLogsProvider` | CloudWatch Logs   | `putLogEvents`, `createLogStream`       |
-| `OpenAIProvider`         | OpenAI (externo)  | `createChatCompletion`, `analyze`       |
+| Provider                 | Recurso AWS      | Métodos Helper                            |
+| ------------------------ | ---------------- | ----------------------------------------- |
+| `DynamoDBProvider`       | DynamoDB         | `putItem`, `getItem`, `query`             |
+| `S3Provider`             | S3               | `getBucketName(functional)`               |
+| `SQSProvider`            | SQS              | `getQueueName(functional)`, `sendMessage` |
+| `SNSProvider`            | SNS              | `getTopicName(functional)`, `publish`     |
+| `SecretsManagerProvider` | Secrets Manager  | `getSecretName(functional)`, `getSecret`  |
+| `CloudWatchLogsProvider` | CloudWatch Logs  | `putLogEvents`, `createLogStream`         |
+| `OpenAIProvider`         | OpenAI (externo) | `createChatCompletion`, `analyze`         |
 
 ## Como registrar no AppModule
 
@@ -120,6 +121,7 @@ import { MyProvider } from './providers/aws/my.provider';
 ```
 
 ## Regras
+
 1. **NUNCA** crie um client AWS diretamente em um Service. Sempre via Provider.
 2. **NUNCA** instancie um provider sem `ConfigService`. Nunca hardcode credenciais.
 3. **SEMPRE** use `getResourceName()` para nomes de recursos. Nunca hardcode.

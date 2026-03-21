@@ -9,7 +9,13 @@ const ENV_AWS_SECRET_ACCESS_KEY = 'AWS_SECRET_ACCESS_KEY';
 const DUMMY_CREDENTIAL = 'dummy';
 /* eslint-enable i18next/no-literal-string */
 
-export { ENV_AWS_REGION, ENV_AWS_ENDPOINT, ENV_AWS_ACCESS_KEY_ID, ENV_AWS_SECRET_ACCESS_KEY, DUMMY_CREDENTIAL };
+export {
+  ENV_AWS_REGION,
+  ENV_AWS_ENDPOINT,
+  ENV_AWS_ACCESS_KEY_ID,
+  ENV_AWS_SECRET_ACCESS_KEY,
+  DUMMY_CREDENTIAL,
+};
 
 /** Standard AWS client configuration shape. */
 export interface IAwsClientConfig {
@@ -60,7 +66,8 @@ export abstract class BaseProvider {
       endpoint: this.configService.get<string>(ENV_AWS_ENDPOINT, 'http://localhost:4566'),
       credentials: {
         accessKeyId: this.configService.get<string>(ENV_AWS_ACCESS_KEY_ID) || DUMMY_CREDENTIAL,
-        secretAccessKey: this.configService.get<string>(ENV_AWS_SECRET_ACCESS_KEY) || DUMMY_CREDENTIAL,
+        secretAccessKey:
+          this.configService.get<string>(ENV_AWS_SECRET_ACCESS_KEY) || DUMMY_CREDENTIAL,
       },
     };
   }

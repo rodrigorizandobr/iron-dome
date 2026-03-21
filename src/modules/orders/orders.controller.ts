@@ -1,6 +1,14 @@
 import {
-  Controller, Get, Post, Put, Delete,
-  Param, Body, Req, Query, Version,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Req,
+  Query,
+  Version,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -37,7 +45,10 @@ export class OrdersController {
   @ApiResponse({ status: 400, description: 'Validation failed' })
   @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async create(@Req() req: ITenantRequest, @Body() dto: CreateOrderDto): Promise<OrderResponseDto> {
-    return this.ordersService.create({ ...dto, tenantId: req.tenantId } as unknown as CreateOrderDto);
+    return this.ordersService.create({
+      ...dto,
+      tenantId: req.tenantId,
+    } as unknown as CreateOrderDto);
   }
 
   /** List all orders for the current tenant (paginated). */
@@ -68,11 +79,7 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'Order updated', type: OrderResponseDto })
   @ApiResponse({ status: 404, description: MSG_ORDER_NOT_FOUND })
   @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
-  async update(
-    @Req() req: ITenantRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateOrderDto,
-  ) {
+  async update(@Req() req: ITenantRequest, @Param('id') id: string, @Body() dto: UpdateOrderDto) {
     return this.ordersService.update(req.tenantId, id, dto);
   }
 

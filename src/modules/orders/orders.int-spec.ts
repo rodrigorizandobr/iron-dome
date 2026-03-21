@@ -23,11 +23,7 @@ describe('OrdersController (integration)', () => {
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
-        AuthModule,
-        OrdersModule,
-      ],
+      imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, OrdersModule],
     }).compile();
 
     app = module.createNestApplication();
@@ -79,9 +75,7 @@ describe('OrdersController (integration)', () => {
 
   describe('GET /v1/orders', () => {
     it('should reject unauthenticated requests', async () => {
-      await request(app.getHttpServer())
-        .get(ORDERS_PATH)
-        .expect(401);
+      await request(app.getHttpServer()).get(ORDERS_PATH).expect(401);
     });
 
     it('should list orders for tenant', async () => {

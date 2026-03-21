@@ -54,7 +54,14 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
   async update(tenantId: string, id: string, data: UpdateOrderDto): Promise<IOrder> {
     const result = await super.update(tenantId, id, data);
     await this.eventPublisher.publishUpdated(result.id, result.tenantId);
-    await this.audit.record(tenantId, 'UPDATE', ORDER_ENTITY, id, undefined, data as unknown as Record<string, unknown>);
+    await this.audit.record(
+      tenantId,
+      'UPDATE',
+      ORDER_ENTITY,
+      id,
+      undefined,
+      data as unknown as Record<string, unknown>,
+    );
     return result;
   }
 

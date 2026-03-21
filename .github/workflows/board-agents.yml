@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      
+
       - name: Refinar Issue (IA)
         env:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
@@ -54,7 +54,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      
+
       - name: Configurar Git e Branch
         run: |
           git config user.name "AI Developer"
@@ -69,7 +69,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx ts-node scripts/agents/dev.ts
-      
+
       - name: Commitar e Avisar
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,7 +97,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Checkout da branch da Issue
-        run: git checkout feat/issue-${{ github.event.issue.number }} || echo "Aviso: Branch não encontrada!"
+        run: |-
+          git checkout feat/issue-${{ github.event.issue.number }} || echo "Aviso: Branch não encontrada!"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -172,7 +173,7 @@ jobs:
           TEST_LOG=$(cat test_output.txt)
           gh issue comment ${{ github.event.issue.number }} --body "❌ **Testes Falharam.** Retornando para a IA arrumar.
           <details><summary>Log do Erro (Jest)</summary>
-          
+
           \`\`\`
           $TEST_LOG
           \`\`\`
@@ -225,7 +226,7 @@ jobs:
           CI_LOG=$(cat ci_output.txt)
           gh issue comment ${{ github.event.issue.number }} --body "❌ **CI Falhou (Lint/Integrado).** Retornando para Dev para correção.
           <details><summary>Log do Erro</summary>
-          
+
           \`\`\`
           $CI_LOG
           \`\`\`

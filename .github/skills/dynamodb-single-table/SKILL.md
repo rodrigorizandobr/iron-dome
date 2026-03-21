@@ -1,36 +1,38 @@
 ---
-name: "DynamoDB Single Table Design"
-description: "Skill para implementar entidades de dados usando Single Table Design no DynamoDB. Cobre PK/SK, GSI, BaseResourceService, Multi-tenancy, Soft-delete e queries performáticas."
+name: 'DynamoDB Single Table Design'
+description: 'Skill para implementar entidades de dados usando Single Table Design no DynamoDB. Cobre PK/SK, GSI, BaseResourceService, Multi-tenancy, Soft-delete e queries performáticas.'
 ---
 
 # Skill: DynamoDB Single Table Design
 
 ## Quando usar esta skill
+
 - Ao criar uma **nova entidade de negócio** (Users, Orders, Products, etc).
 - Ao projetar **access patterns** para queries no DynamoDB.
 - Ao revisar se uma implementação respeita o isolamento de tenants.
 
 ## Conceito Central
+
 Uma única tabela DynamoDB serve a **todas as entidades** do subdomínio. A diferenciação é feita via prefixos nas chaves PK e SK.
 
 ### Design de Chaves
 
-| Chave | Formato                        | Propósito                              |
-|-------|--------------------------------|----------------------------------------|
-| PK    | `TENANT#[tenantId]#[ENTITY]`   | Agrupa itens por tenant + entidade     |
-| SK    | `[ENTITY]#[id]`                | Identifica o item específico           |
-| PK    | `TENANT#[tenantId]#AUDIT`      | Audit trail entries (immutable)        |
-| SK    | `AUDIT#[ts]#[type]#[id]`       | Chronological audit ordering           |
-| GSI1PK| `entityType`                   | Busca cross-tenant por tipo de entidade|
-| GSI1SK| `SK`                           | Ordenação natural pelo ID              |
+| Chave  | Formato                      | Propósito                               |
+| ------ | ---------------------------- | --------------------------------------- |
+| PK     | `TENANT#[tenantId]#[ENTITY]` | Agrupa itens por tenant + entidade      |
+| SK     | `[ENTITY]#[id]`              | Identifica o item específico            |
+| PK     | `TENANT#[tenantId]#AUDIT`    | Audit trail entries (immutable)         |
+| SK     | `AUDIT#[ts]#[type]#[id]`     | Chronological audit ordering            |
+| GSI1PK | `entityType`                 | Busca cross-tenant por tipo de entidade |
+| GSI1SK | `SK`                         | Ordenação natural pelo ID               |
 
 ### Exemplo para a entidade `ORDER`
 
-| PK                      | SK            | entityType | id     | status  |
-|-------------------------|---------------|------------|--------|---------|
-| `TENANT#abc#ORDER`      | `ORDER#001`   | `ORDER`    | `001`  | `paid`  |
-| `TENANT#abc#ORDER`      | `ORDER#002`   | `ORDER`    | `002`  | `pending`|
-| `TENANT#xyz#ORDER`      | `ORDER#003`   | `ORDER`    | `003`  | `paid`  |
+| PK                 | SK          | entityType | id    | status    |
+| ------------------ | ----------- | ---------- | ----- | --------- |
+| `TENANT#abc#ORDER` | `ORDER#001` | `ORDER`    | `001` | `paid`    |
+| `TENANT#abc#ORDER` | `ORDER#002` | `ORDER`    | `002` | `pending` |
+| `TENANT#xyz#ORDER` | `ORDER#003` | `ORDER`    | `003` | `paid`    |
 
 ## Como implementar um novo recurso
 
@@ -79,13 +81,13 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
 
 ### 2. O que você ganha automaticamente
 
-| Método    | Operação DynamoDB | Descrição                                |
-|-----------|-------------------|------------------------------------------|
-| `create`  | PutItem           | Insere com PK/SK, timestamps, `deleted: false` |
-| `findOne` | GetItem           | Busca por PK+SK, filtra soft-deleted     |
+| Método    | Operação DynamoDB | Descrição                                                            |
+| --------- | ----------------- | -------------------------------------------------------------------- |
+| `create`  | PutItem           | Insere com PK/SK, timestamps, `deleted: false`                       |
+| `findOne` | GetItem           | Busca por PK+SK, filtra soft-deleted                                 |
 | `findAll` | Query             | Query pela PK do tenant, filtra deleted, **cursor-based pagination** |
-| `update`  | PutItem           | Merge com dados existentes + updatedAt   |
-| `remove`  | PutItem           | Soft-delete: `deleted: true`             |
+| `update`  | PutItem           | Merge com dados existentes + updatedAt                               |
+| `remove`  | PutItem           | Soft-delete: `deleted: true`                                         |
 
 ### 3. Atributos automáticos em todo item
 
@@ -105,6 +107,7 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
 ```
 
 ## Regras Invioláveis
+
 1. **NUNCA** crie mais de uma tabela por subdomínio. Use Single Table Design.
 2. **NUNCA** crie um item sem `tenantId`. O `BaseResourceService` lança `BadRequestException` automaticamente.
 3. **NUNCA** delete fisicamente. O `remove()` faz soft-delete com `deleted: true`.

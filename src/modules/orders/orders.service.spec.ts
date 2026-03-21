@@ -50,9 +50,9 @@ describe('OrdersService', () => {
 
   describe('create', () => {
     it('should throw BadRequestException if tenantId is missing', async () => {
-      await expect(
-        service.create({ productName: 'Widget', amount: 100 } as never),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create({ productName: 'Widget', amount: 100 } as never)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should create an order with tenant isolation', async () => {
@@ -69,15 +69,11 @@ describe('OrdersService', () => {
       expect(result.deleted).toBe(false);
       expect(result.createdAt).toBeDefined();
       expect(result.updatedAt).toBeDefined();
-      expect(mockDynamo.putItem).toHaveBeenCalledWith(
-        'test-table',
-        expect.anything(),
-      );
-      expect(mockEventPublisher.publishCreated).toHaveBeenCalledWith(
-        result.id,
-        'tenant-A',
-        { productName: 'Widget', amount: 9990 },
-      );
+      expect(mockDynamo.putItem).toHaveBeenCalledWith('test-table', expect.anything());
+      expect(mockEventPublisher.publishCreated).toHaveBeenCalledWith(result.id, 'tenant-A', {
+        productName: 'Widget',
+        amount: 9990,
+      });
     });
   });
 
@@ -112,17 +108,13 @@ describe('OrdersService', () => {
         }),
       });
 
-      await expect(service.findOne('t1', '456')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('t1', '456')).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException if item does not exist', async () => {
       mockDynamo.getItem.mockResolvedValueOnce({});
 
-      await expect(service.findOne('t1', 'nonexistent')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('t1', 'nonexistent')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -166,10 +158,7 @@ describe('OrdersService', () => {
       expect(result.deleted).toBe(true);
       expect(result.updatedAt).toBeDefined();
       expect(mockDynamo.putItem).toHaveBeenCalled();
-      expect(mockEventPublisher.publishDeleted).toHaveBeenCalledWith(
-        '123',
-        't1',
-      );
+      expect(mockEventPublisher.publishDeleted).toHaveBeenCalledWith('123', 't1');
     });
   });
 
@@ -181,11 +170,7 @@ describe('OrdersService', () => {
       });
 
       await service.findAll('tenant-X');
-      expect(mockDynamo.query).toHaveBeenCalledWith(
-        'test-table',
-        'TENANT#tenant-X#ORDER',
-        {},
-      );
+      expect(mockDynamo.query).toHaveBeenCalledWith('test-table', 'TENANT#tenant-X#ORDER', {});
     });
   });
 });

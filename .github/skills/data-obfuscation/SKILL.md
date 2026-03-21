@@ -1,34 +1,36 @@
 ---
-name: "Data Obfuscation"
-description: "Skill para implementar ofuscação de dados sensíveis em logs, respostas de erro e auditoria. Cobre ObfuscationService, campos sensíveis, integração com filters, e regras de segurança LGPD/PCI."
+name: 'Data Obfuscation'
+description: 'Skill para implementar ofuscação de dados sensíveis em logs, respostas de erro e auditoria. Cobre ObfuscationService, campos sensíveis, integração com filters, e regras de segurança LGPD/PCI.'
 ---
 
 # Skill: Data Obfuscation
 
 ## Quando usar esta skill
+
 - Ao fazer **logging de qualquer objeto** que possa conter dados sensíveis.
 - Ao criar ou revisar **exception filters** que retornam detalhes ao cliente.
 - Ao implementar **auditoria** ou **tracing** que persiste dados.
 - Ao revisar se dados sensíveis estão expostos em logs ou respostas.
 
 ## Princípio Central
+
 > Use `ObfuscationService.obfuscate(obj)` **antes** de qualquer `console.log`, `logger.error`, ou gravação em arquivo. Dados sensíveis NUNCA devem aparecer em logs.
 
 ## Campos Sensíveis (Lista Padrão)
 
-| Campo          | Tipo        | Exemplo                    |
-|----------------|-------------|----------------------------|
-| `password`     | Credencial  | `"abc123"` → `"********"` |
-| `secret`       | Credencial  | Token secreto              |
-| `token`        | Auth        | JWT, API key               |
-| `key`          | Auth        | Access key, secret key     |
-| `auth`         | Auth        | Authorization header       |
-| `credit_card`  | PCI         | Número do cartão           |
-| `cvv`          | PCI         | Código de segurança        |
-| `cpf`          | LGPD        | Documento pessoal          |
-| `rg`           | LGPD        | Documento pessoal          |
-| `document`     | LGPD        | Documento genérico         |
-| `payload`      | Genérico    | Payload com dados mistos   |
+| Campo         | Tipo       | Exemplo                   |
+| ------------- | ---------- | ------------------------- |
+| `password`    | Credencial | `"abc123"` → `"********"` |
+| `secret`      | Credencial | Token secreto             |
+| `token`       | Auth       | JWT, API key              |
+| `key`         | Auth       | Access key, secret key    |
+| `auth`        | Auth       | Authorization header      |
+| `credit_card` | PCI        | Número do cartão          |
+| `cvv`         | PCI        | Código de segurança       |
+| `cpf`         | LGPD       | Documento pessoal         |
+| `rg`          | LGPD       | Documento pessoal         |
+| `document`    | LGPD       | Documento genérico        |
+| `payload`     | Genérico   | Payload com dados mistos  |
 
 > O match é feito via `includes()` no nome do campo (case-insensitive). `userPassword`, `authToken`, `creditCard` — todos são detectados.
 
@@ -40,8 +42,17 @@ description: "Skill para implementar ofuscação de dados sensíveis em logs, re
 @Injectable()
 export class ObfuscationService {
   private sensitivePatterns: string[] = [
-    'password', 'secret', 'token', 'key', 'auth',
-    'credit_card', 'cvv', 'cpf', 'rg', 'document', 'payload',
+    'password',
+    'secret',
+    'token',
+    'key',
+    'auth',
+    'credit_card',
+    'cvv',
+    'cpf',
+    'rg',
+    'document',
+    'payload',
   ];
 
   /**
@@ -55,9 +66,7 @@ export class ObfuscationService {
     const result = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        const isSensitive = this.sensitivePatterns.some((p) =>
-          key.toLowerCase().includes(p),
-        );
+        const isSensitive = this.sensitivePatterns.some((p) => key.toLowerCase().includes(p));
         if (isSensitive) result[key] = '********';
         else if (typeof obj[key] === 'object') result[key] = this.obfuscate(obj[key]);
         else result[key] = obj[key];

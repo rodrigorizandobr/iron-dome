@@ -19,20 +19,27 @@ async function run() {
   // 1. Procura por erros de testes (Feedback Loop)
   let feedbackErro = '';
   try {
-    const commentsResponse = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
-      headers: {
-        'Authorization': `Bearer ${ghToken}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-    
+    const commentsResponse = await fetch(
+      `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`,
+      {
+        headers: {
+          Authorization: `Bearer ${ghToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      },
+    );
+
     if (commentsResponse.ok) {
       const comments = await commentsResponse.json();
       // Busca o último comentário que indica falha nos testes do pipeline
-      const lastErrorComment = comments.reverse().find((c: any) => c.body.includes('❌ **Testes Falharam.**'));
-      
+      const lastErrorComment = comments
+        .reverse()
+        .find((c: any) => c.body.includes('❌ **Testes Falharam.**'));
+
       if (lastErrorComment) {
-        console.log('🚨 Detectado um erro de testes anterior. A IA vai entrar em modo de correção.');
+        console.log(
+          '🚨 Detectado um erro de testes anterior. A IA vai entrar em modo de correção.',
+        );
         feedbackErro = `\n\nATENÇÃO: A sua implementação anterior falhou nos testes de pipeline. Leia o log de erro abaixo e corrija os arquivos correspondentes:\n${lastErrorComment.body}`;
       }
     }
@@ -64,18 +71,21 @@ RETORNE APENAS UM JSON VÁLIDO. NENHUM TEXTO FORA DO JSON. O formato DEVE ser um
   });
 
   let iaOutput = response.choices[0]?.message?.content || '[]';
-  
+
   // Remove blocos de markdown que a IA costuma colocar em volta do JSON
-  iaOutput = iaOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+  iaOutput = iaOutput
+    .replace(/```json/g, '')
+    .replace(/```/g, '')
+    .trim();
 
   try {
     const files = JSON.parse(iaOutput);
     for (const file of files) {
       const fullPath = path.resolve(process.cwd(), file.filePath);
-      
+
       // Cria a estrutura de pastas automaticamente caso a IA tenha inventado um módulo novo
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      
+
       // Salva o arquivo no repositório
       fs.writeFileSync(fullPath, file.content, 'utf-8');
       console.log(`✅ Arquivo criado/modificado: ${file.filePath}`);

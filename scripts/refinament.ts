@@ -44,18 +44,21 @@ Retorne SUA ANÁLISE EM MARKDOWN contendo obrigatoriamente:
 
   // Faz a requisição para a API do GitHub para comentar na Issue
   const commentPayload = {
-    body: `🤖 **Refinamento Técnico (Iron Dome Tech Lead)**\n\n${iaResponse}`
+    body: `🤖 **Refinamento Técnico (Iron Dome Tech Lead)**\n\n${iaResponse}`,
   };
 
-  const ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${ghToken}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json'
+  const ghResponse = await fetch(
+    `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${ghToken}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(commentPayload),
     },
-    body: JSON.stringify(commentPayload)
-  });
+  );
 
   if (!ghResponse.ok) {
     const errorBody = await ghResponse.text();

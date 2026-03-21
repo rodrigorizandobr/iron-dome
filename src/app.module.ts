@@ -58,8 +58,6 @@ import { AppController } from './app.controller';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(MultiTenancyMiddleware, RequestLoggingMiddleware)
-      .forRoutes('*');
+    consumer.apply(MultiTenancyMiddleware, RequestLoggingMiddleware).forRoutes('*');
   }
 }

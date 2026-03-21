@@ -38,10 +38,12 @@ export class CloudWatchLogsProvider extends BaseProvider {
       }
     }
     try {
-      await this.client.send(new CreateLogStreamCommand({
-        logGroupName: this.logGroupName,
-        logStreamName: this.logStreamName,
-      }));
+      await this.client.send(
+        new CreateLogStreamCommand({
+          logGroupName: this.logGroupName,
+          logStreamName: this.logStreamName,
+        }),
+      );
     } catch (error) {
       if (!(error instanceof ResourceAlreadyExistsException)) {
         this.handleError('createLogStream', error);
@@ -57,12 +59,14 @@ export class CloudWatchLogsProvider extends BaseProvider {
   async putLog(message: string): Promise<void> {
     this.logOperation('putLog', { logGroup: this.logGroupName });
     try {
-      const result = await this.client.send(new PutLogEventsCommand({
-        logGroupName: this.logGroupName,
-        logStreamName: this.logStreamName,
-        sequenceToken: this.sequenceToken,
-        logEvents: [{ timestamp: Date.now(), message }],
-      }));
+      const result = await this.client.send(
+        new PutLogEventsCommand({
+          logGroupName: this.logGroupName,
+          logStreamName: this.logStreamName,
+          sequenceToken: this.sequenceToken,
+          logEvents: [{ timestamp: Date.now(), message }],
+        }),
+      );
       this.sequenceToken = result.nextSequenceToken;
     } catch (error) {
       this.handleError('putLog', error);

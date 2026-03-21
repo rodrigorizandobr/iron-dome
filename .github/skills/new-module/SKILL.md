@@ -1,16 +1,18 @@
 ---
-name: "New Module Generator"
-description: "Skill para criar um módulo CRUD completo (Deployd-style) a partir de apenas um nome de entidade. Gera Service, Controller, Module, DTOs, Response DTO, Event Publisher, SQS Processor, i18n keys, e testes — tudo integrado com DynamoDB, JWT Auth, Pagination, Audit Trail, Event-Driven Architecture, Multi-tenancy, Soft-delete e i18n."
+name: 'New Module Generator'
+description: 'Skill para criar um módulo CRUD completo (Deployd-style) a partir de apenas um nome de entidade. Gera Service, Controller, Module, DTOs, Response DTO, Event Publisher, SQS Processor, i18n keys, e testes — tudo integrado com DynamoDB, JWT Auth, Pagination, Audit Trail, Event-Driven Architecture, Multi-tenancy, Soft-delete e i18n.'
 ---
 
 # Skill: New Module Generator (Deployd-style)
 
 ## Quando usar esta skill
+
 - Quando o usuário diz: **"cria um módulo de Orders"**, **"preciso de CRUD de Products"**, **"adiciona Users"**.
 - Quando alguém pede para criar uma **nova entidade de negócio** com REST API.
 - Este é o skill mais importante — transforma um nome em API completa.
 
 ## Filosofia Deployd
+
 > **1 nome → API CRUD completa.** Sem boilerplate manual. O copilot gera tudo.
 
 Deployd: `dpd create /orders` → API pronta.  
@@ -154,10 +156,17 @@ export class OrderEventPublisher {
 
   /** Generic event publisher. Fire-and-forget — logs errors but never throws. */
   private async publishEvent(
-    event: string, orderId: string, tenantId: string, data?: Record<string, unknown>,
+    event: string,
+    orderId: string,
+    tenantId: string,
+    data?: Record<string, unknown>,
   ) {
     const payload: IOrderEvent = {
-      event, orderId, tenantId, timestamp: new Date().toISOString(), data,
+      event,
+      orderId,
+      tenantId,
+      timestamp: new Date().toISOString(),
+      data,
     };
     try {
       await this.sns.publish(this.topicArn, payload as unknown as Record<string, unknown>);
@@ -194,9 +203,7 @@ export class OrderProcessorService extends SqsConsumerService {
     const event = body.event as string;
     const orderId = body.orderId as string;
 
-    this.processorLogger.log(
-      `Processing event=${event} orderId=${orderId} messageId=${messageId}`,
-    );
+    this.processorLogger.log(`Processing event=${event} orderId=${orderId} messageId=${messageId}`);
 
     switch (event) {
       case 'order.created':
@@ -281,7 +288,14 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
   async update(tenantId: string, id: string, data: UpdateOrderDto): Promise<IOrder> {
     const result = await super.update(tenantId, id, data);
     await this.eventPublisher.publishUpdated(result.id, result.tenantId);
-    await this.audit.record(tenantId, 'UPDATE', 'ORDER', id, undefined, data as unknown as Record<string, unknown>);
+    await this.audit.record(
+      tenantId,
+      'UPDATE',
+      'ORDER',
+      id,
+      undefined,
+      data as unknown as Record<string, unknown>,
+    );
     return result;
   }
 
@@ -301,8 +315,16 @@ export class OrdersService extends BaseResourceService<IOrder, CreateOrderDto, U
 
 ```typescript
 import {
-  Controller, Get, Post, Put, Delete,
-  Param, Body, Req, Query, Version,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Req,
+  Query,
+  Version,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -336,7 +358,10 @@ export class OrdersController {
   @ApiResponse({ status: 400, description: 'Validation failed' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async create(@Req() req: ITenantRequest, @Body() dto: CreateOrderDto) {
-    return this.ordersService.create({ ...dto, tenantId: req.tenantId } as unknown as CreateOrderDto);
+    return this.ordersService.create({
+      ...dto,
+      tenantId: req.tenantId,
+    } as unknown as CreateOrderDto);
   }
 
   /** List all orders for the current tenant (paginated). */
@@ -367,11 +392,7 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'Order updated', type: OrderResponseDto })
   @ApiResponse({ status: 404, description: 'Order not found' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async update(
-    @Req() req: ITenantRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateOrderDto,
-  ) {
+  async update(@Req() req: ITenantRequest, @Param('id') id: string, @Body() dto: UpdateOrderDto) {
     return this.ordersService.update(req.tenantId, id, dto);
   }
 
@@ -389,6 +410,7 @@ export class OrdersController {
 ```
 
 **Diferenças críticas vs versão anterior**:
+
 - `@ApiBearerAuth()` — JWT obrigatório (global via `AuthModule`)
 - `ITenantRequest` — interface tipada (sem `as any`)
 - `@Query() pagination: PaginationQueryDto` — paginação cursor-based no `findAll`
@@ -514,22 +536,24 @@ describe('OrdersService', () => {
   });
 
   it('should throw if tenantId is missing on create', async () => {
-    await expect(service.create({ productName: 'X', amount: 10 } as any))
-      .rejects.toThrow(BadRequestException);
+    await expect(service.create({ productName: 'X', amount: 10 } as any)).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('should create with tenant isolation and publish event', async () => {
     const result = await service.create({
-      tenantId: 'tenant-A', productName: 'Widget', amount: 50,
+      tenantId: 'tenant-A',
+      productName: 'Widget',
+      amount: 50,
     } as any);
     expect(result.tenantId).toBe('tenant-A');
     expect(result.deleted).toBe(false);
-    expect(mockEventPublisher.publishCreated).toHaveBeenCalledWith(
-      result.id, 'tenant-A', { productName: 'Widget', amount: 50 },
-    );
-    expect(mockAudit.record).toHaveBeenCalledWith(
-      'tenant-A', 'CREATE', 'ORDER', result.id,
-    );
+    expect(mockEventPublisher.publishCreated).toHaveBeenCalledWith(result.id, 'tenant-A', {
+      productName: 'Widget',
+      amount: 50,
+    });
+    expect(mockAudit.record).toHaveBeenCalledWith('tenant-A', 'CREATE', 'ORDER', result.id);
   });
 });
 ```

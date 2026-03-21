@@ -1,12 +1,7 @@
 import { Logger } from '@nestjs/common';
 
 /** Required environment variables that must be set before application starts. */
-const REQUIRED_VARS = [
-  'AWS_REGION',
-  'AWS_ENDPOINT',
-  'NODE_ENV',
-  'JWT_SECRET',
-];
+const REQUIRED_VARS = ['AWS_REGION', 'AWS_ENDPOINT', 'NODE_ENV', 'JWT_SECRET'];
 
 /**
  * Validates that all required environment variables are set.

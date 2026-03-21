@@ -22,8 +22,17 @@ export class ObfuscationService {
 
   /* eslint-disable i18next/no-literal-string */
   private sensitivePatterns: string[] = [
-    'password', 'secret', 'token', 'key', 'auth',
-    'credit_card', 'cvv', 'cpf', 'rg', 'document', 'payload',
+    'password',
+    'secret',
+    'token',
+    'key',
+    'auth',
+    'credit_card',
+    'cvv',
+    'cpf',
+    'rg',
+    'document',
+    'payload',
   ];
   /* eslint-enable i18next/no-literal-string */
 
@@ -47,9 +56,7 @@ export class ObfuscationService {
     for (const key in source) {
       if (Object.prototype.hasOwnProperty.call(source, key)) {
         const lowerKey = key.toLowerCase();
-        const isSensitive = this.sensitivePatterns.some((pattern) =>
-          lowerKey.includes(pattern),
-        );
+        const isSensitive = this.sensitivePatterns.some((pattern) => lowerKey.includes(pattern));
 
         if (isSensitive) {
           result[key] = '********';

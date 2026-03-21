@@ -1,17 +1,19 @@
 ---
-name: "Multi-Tenancy"
-description: "Skill para implementar e validar isolamento multi-tenant em toda a aplicação. Cobre middleware de extração, PK com tenantId, validação obrigatória no create(), e padrões de acesso isolado no DynamoDB."
+name: 'Multi-Tenancy'
+description: 'Skill para implementar e validar isolamento multi-tenant em toda a aplicação. Cobre middleware de extração, PK com tenantId, validação obrigatória no create(), e padrões de acesso isolado no DynamoDB.'
 ---
 
 # Skill: Multi-Tenancy
 
 ## Quando usar esta skill
+
 - Ao criar uma **nova entidade** ou **service** que manipula dados.
 - Ao criar ou revisar **controllers** que recebem requisições HTTP.
 - Ao verificar se o isolamento de tenants está correto em uma feature.
 - Ao depurar problemas de dados onde um tenant acessa dados de outro.
 
 ## Princípio Central
+
 > Sem `tenantId`, não é seguro. Todo dado pertence a um tenant.
 
 O isolamento é **lógico** via prefixo na PK do DynamoDB. Não existe database separado por tenant — a separação é por chave.
@@ -74,13 +76,13 @@ async create(data: any): Promise<T> {
 
 ### 3. Isolamento na PK (DynamoDB)
 
-| Operação  | Chave usada                           | Isolamento |
-|-----------|---------------------------------------|------------|
-| `create`  | PK: `TENANT#[tenantId]#[ENTITY]`     | ✅ Tenant no PK |
-| `findOne` | PK + SK                               | ✅ Acessa apenas dados do tenant |
-| `findAll` | Query por PK                          | ✅ Retorna apenas dados do tenant |
-| `update`  | PK + SK (via `findOne` primeiro)      | ✅ Validado antes do update |
-| `remove`  | PK + SK (via `findOne` primeiro)      | ✅ Soft-delete isolado |
+| Operação  | Chave usada                      | Isolamento                        |
+| --------- | -------------------------------- | --------------------------------- |
+| `create`  | PK: `TENANT#[tenantId]#[ENTITY]` | ✅ Tenant no PK                   |
+| `findOne` | PK + SK                          | ✅ Acessa apenas dados do tenant  |
+| `findAll` | Query por PK                     | ✅ Retorna apenas dados do tenant |
+| `update`  | PK + SK (via `findOne` primeiro) | ✅ Validado antes do update       |
+| `remove`  | PK + SK (via `findOne` primeiro) | ✅ Soft-delete isolado            |
 
 ## Como usar no Controller
 
@@ -107,7 +109,10 @@ export class OrdersController {
 
   @Post()
   async create(@Req() req: ITenantRequest, @Body() dto: CreateOrderDto) {
-    return this.ordersService.create({ ...dto, tenantId: req.tenantId } as unknown as CreateOrderDto);
+    return this.ordersService.create({
+      ...dto,
+      tenantId: req.tenantId,
+    } as unknown as CreateOrderDto);
   }
 
   @Get(':id')
