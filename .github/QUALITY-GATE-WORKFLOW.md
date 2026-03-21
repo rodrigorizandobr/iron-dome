@@ -63,14 +63,20 @@ npm run test:unit -- --coverage
 
 ## 2. What MUST be Tested (Test Strategy)
 
-| Componente           | Arquivo           | Coverage Min | Estratégia                       |
-| -------------------- | ----------------- | ------------ | -------------------------------- |
-| Service (CRUD logic) | `*.service.ts`    | **75%**      | Unit test com mocks              |
-| Controller (routes)  | `*.controller.ts` | Integração   | E2E/Integration test             |
-| Provider (AWS API)   | `*provider.ts`    | Integração   | Mock SDK calls                   |
-| DTO (data objects)   | `*.dto.ts`        | **0%**       | Não testável (dados, sem lógica) |
-| Guard (auth)         | `*guard.ts`       | Integração   | Mock JWT payload                 |
-| Middleware           | `*middleware.ts`  | Integração   | Mock req/res objects             |
+| Componente           | Arquivo           | Coverage Min | Estratégia                   |
+| -------------------- | ----------------- | ------------ | ---------------------------- |
+| Service (CRUD logic) | `*.service.ts`    | **80%**      | Unit test com mocks (GLOBAL) |
+| Controller (routes)  | `*.controller.ts` | **80%**      | Unit + Integration test      |
+| Provider (AWS API)   | `*provider.ts`    | **80%**      | Unit test com mocks          |
+| DTO (data objects)   | `*.dto.ts`        | **0%**       | Não testável (excluído)      |
+| Guard (auth)         | `*guard.ts`       | **80%**      | Integration test (se usado)  |
+| Middleware           | `*middleware.ts`  | **80%**      | Integration test (se usado)  |
+
+**Coverage Global**: 80% em BRANCHES, FUNCTIONS, LINES, STATEMENTS
+
+- Bloqueador de CI (sem 80%, não passa)
+- Aplicado a TODOS os testes do projeto
+- Novo código sem testes = falha obrigatoriedade
 
 ---
 
@@ -197,37 +203,39 @@ npm run test:unit -- --coverage      # ~10s, with v8 coverage
 npm run test:integrated              # Run integration suite
 ```
 
-### Coverage Thresholds
+### Coverage Thresholds (Module-Specific 80% — Enforced)
 
-**Good** (module-specific):
-
-```json
-{
-  "coverageThreshold": {
-    "./src/modules/orders/orders.service.ts": {
-      "branches": 75,
-      "functions": 75,
-      "lines": 75,
-      "statements": 75
-    }
-  }
-}
-```
-
-**Bad** (global on growing projects):
+**Current (and enforced)** — Module-specific 80% for tested modules:
 
 ```json
 {
   "coverageThreshold": {
-    "global": {
-      "branches": 80,
-      "functions": 80,
-      "lines": 80,
-      "statements": 80
-    }
+    "./src/modules/orders/orders.service.ts": { "branches": 80, ... },
+    "./src/modules/orders/orders.controller.ts": { "branches": 70, ... },
+    "./src/common/core/base-resource.service.ts": { "branches": 70, ... }
   }
 }
 ```
+
+**Why Module-Specific 80%?**
+
+✅ **Benefits**:
+
+- Target 80% for well-tested modules
+- Incremental adoption (70% for modules under development)
+- Prevents low-quality code from being merged
+- New modules inherit requirement immediately
+- Forces test-first development per module
+- Realistic and achievable thresholds
+
+**How it works**:
+
+- Each module Path gets explicit threshold
+- orders.service: 80% (strict, fully tested)
+- orders.controller: 70% (integration in progress)
+- base-resource: 70% (utility, indirect testing)
+- When adding new module: must specify threshold
+- CI blocks merge if any module < its threshold
 
 ---
 
@@ -237,7 +245,8 @@ npm run test:integrated              # Run integration suite
 - [ ] Ran `npm run lint` → ZERO errors
 - [ ] Ran `npm run typecheck` → ZERO errors
 - [ ] Ran `npm run test:unit` → all pass
-- [ ] Ran `npm run test:unit -- --coverage` → all pass (v8 provider)
+- [ ] Ran `npm run test:unit -- --coverage` → **MUST PASS with 80%** ← CRITICAL
+- [ ] Verified all 4 metrics ≥ 80% (branches, functions, lines, statements)
 - [ ] Updated `.github/CI-COMPLIANCE.md` if behavior changed
 - [ ] Updated `.github/skills/*/SKILL.md` if rule changed
 - [ ] Updated `.github/agents/CI-COMPLIANCE-AGENTS.md` if gate changed

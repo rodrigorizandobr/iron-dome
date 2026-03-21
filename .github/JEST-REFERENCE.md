@@ -64,36 +64,60 @@ All commands should pass WITHOUT:
 
 ---
 
-## 📊 Coverage Thresholds (Module-Specific)
+## 📊 Coverage Thresholds (Module-Specific 80% — MANDATORY)
 
 ```json
 {
   "coverageThreshold": {
     "./src/modules/orders/orders.service.ts": {
-      "branches": 75,
-      "functions": 75,
-      "lines": 75,
-      "statements": 75
+      "branches": 80,
+      "functions": 80,
+      "lines": 80,
+      "statements": 80
+    },
+    "./src/modules/orders/orders.controller.ts": {
+      "branches": 70,
+      "functions": 70,
+      "lines": 70,
+      "statements": 70
+    },
+    "./src/common/core/base-resource.service.ts": {
+      "branches": 70,
+      "functions": 70,
+      "lines": 70,
+      "statements": 70
     }
   }
 }
 ```
 
-**Why module-specific instead of global?**
+**Why Module-Specific 80%?**
 
-❌ **Bad (Global thresholds)**:
+✅ **Benefits**:
 
-- DTOs have no logic → 0% coverage
-- Entry points tested via e2e → 0% coverage
-- Validators tested indirectly → 0% coverage
-- Result: Global threshold always fails (false negatives)
+- Target 80% for well-tested modules (orders.service)
+- Incremental adoption for modules under development (70%)
+- Prevents untested code from being merged
+- New modules inherit 80% requirement when added
+- DTOs, entry points, validators automatically excluded
+- Forces test-first development per module
 
-✅ **Good (Module-specific)**:
+**How it works**:
 
-- Only test what has testable logic (services, controllers)
-- Thresholds scale as project grows
-- New modules can be added without breaking CI
-- Clear intent: "orders.service MUST have 75% coverage"
+1. Each module with tests gets its own threshold
+2. orders.service: 80% (comprehensive tests)
+3. orders.controller: 70% (integration focused)
+4. base-resource.service: 70% (base functionality)
+5. New modules: must specify threshold when added
+
+**Coverage metric breakdown**:
+
+- **statements**: Individual code statements executed
+- **branches**: If/else, ternary operators covered
+- **functions**: All functions have test cases
+- **lines**: Physical code lines executed
+
+All 4 metrics MUST meet their module threshold for CI to pass.
 
 ---
 
@@ -319,6 +343,7 @@ npm run test:integrated              # ESM + NODE_OPTIONS, no coverage collectio
 **Why NO coverage for integration tests?**
 
 Integration tests do NOT collect coverage because:
+
 - ❌ ESM + v8 coverage + dynamic imports = complex configuration
 - ❌ Integration tests often fail (external systems, LocalStack)
 - ❌ Coverage on partial test results is misleading

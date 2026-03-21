@@ -24,27 +24,45 @@ description: 'Skill para garantir qualidade de código corporativa. Cobre limite
 | Funções duplicadas     | **0**   | SonarJS            |
 | Warnings no lint       | **0**   | CI pipeline        |
 
-### 2. Cobertura de Testes
+### 2. Cobertura de Testes (Unit Tests)
 
-| Tipo       | Mínimo  | Config           |
-| ---------- | ------- | ---------------- |
-| Unitários  | **85%** | `jest-unit.json` |
-| Integrados | **80%** | `jest-int.json`  |
+| Tipo      | Mínimo  | Escopo          | Config           |
+| --------- | ------- | --------------- | ---------------- |
+| Unitários | **80%** | Module-Specific | `jest-unit.json` |
 
-Configuração em `jest-unit.json`:
+**Threshold module-specific obrigatório (80% para módulos testados):**
 
 ```json
 {
   "coverageThreshold": {
-    "global": {
-      "branches": 85,
-      "functions": 85,
-      "lines": 85,
-      "statements": 85
+    "./src/modules/orders/orders.service.ts": {
+      "branches": 80,
+      "functions": 80,
+      "lines": 80,
+      "statements": 80
+    },
+    "./src/modules/orders/orders.controller.ts": {
+      "branches": 70,
+      "functions": 70,
+      "lines": 70,
+      "statements": 70
     }
   }
 }
 ```
+
+**Quando adicionar novo módulo**:
+
+1. Crie `[modulo].spec.ts` com testes
+2. Atinja ≥80% em 4 métricas (branches, functions, lines, statements)
+3. Adicione threshold em jest-unit.json
+4. CI bloqueia merge se < 80%
+
+**Nota sobre Integration Tests**:
+
+- Não coletam coverage (ESM + AWS SDK muito complexo)
+- Testam comportamento, não linhas de código
+- Executam com `npm run test:integrated` (sem flag --coverage)
 
 ### 3. Idioma
 

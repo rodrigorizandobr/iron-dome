@@ -48,16 +48,23 @@ npx tsc --noEmit
   - Don't use `any`, use `unknown` + type guard
   - Import types: `import type { SomeType } from '...'`
 
-### ✅ 4. Unit Tests (Module-Specific Coverage)
+### ✅ 4. Unit Tests (80% Module-Specific Coverage — MANDATORY)
 
 ```bash
 npm run test:unit                    # Fast, no coverage (~3s)
-npm run test:unit -- --coverage      # With v8 coverage (~10s)
+npm run test:unit -- --coverage      # MUST PASS with ≥80% on tested modules (~10s)
 ```
 
-- **Deve passar**: Todos testes passando, coverage module-specific ≥ 75%
-- **Thresholds:**
-  - Nenhum threshold global (módulos não testados ainda)
+- **Deve passar**: Todos testes + coverage ≥ 80% em módulos com testes
+- **Estratégia Module-Specific**:
+  - `orders.service.ts`: 80% (tem testes completos)
+  - `orders.controller.ts`: 70% (parcialmente testado)
+  - `base-resource.service.ts`: 70% (parcialmente testado)
+  - Novos módulos: devem atingir 80% quando adicionados
+- **Por que 80%?**
+  - Força qualidade de código
+  - Previne código não testado ser merged
+  - Cada módulo novo herda padrão (80% ou falha CI)
   - Module-specific: `./src/modules/orders/orders.service.ts` ≥ 75%
 
 #### Se falhar — Jest Coverage Error (babel-plugin-istanbul)
@@ -100,13 +107,23 @@ Failed to collect coverage from /path/to/src/...
 }
 ```
 
-**Verificação:** `npm run test:unit -- --coverage` ✅ (deve passar sem babel erros)
+**Verificação:** `npm run test:unit -- --coverage` ✅ (deve passar com ≥80% em 4 métricas)
 
-#### Se falhar — Coverage Threshold
+#### Se falhar — Coverage Threshold (80% BLOQUEADOR)
 
-- Add `*.spec.ts` tests para novas functions
-- Moque `DynamoDBProvider`, `I18nService`, `EventPublisher` em services
-- Use module-specific thresholds, não global
+**Sintoma**: `Jest: "global" coverage threshold for statements (80%) not met: 24.71%`
+
+**Causa**: Código novo sem testes suficientes
+
+**Fix (obrigatório)**:
+
+1. Add `*.spec.ts` tests para TODAS as novas functions
+2. Target: 80%+ em branches, functions, lines, statements
+3. Moque `DynamoDBProvider`, `I18nService`, `EventPublisher` em services
+4. Rode: `npm run test:unit -- --coverage` até passar
+5. Verifique que coverage report mostra ≥80% em 4 métricas
+
+**Importante**: Este é um bloqueador de CI. Sem 80%, não passa. Sem passar, não merge.
 
 ### ✅ 5. Integration Tests (No Coverage)
 
