@@ -18,13 +18,13 @@ export enum ErrorCode {
   SERVICE_UNAVAILABLE = 'ERR_SERVICE_UNAVAILABLE',
 }
 
-interface ErrorDefinition {
+interface IErrorDefinition {
   httpStatus: HttpStatus;
   i18nKey: string;
 }
 
 /** Maps each ErrorCode to its HTTP status and i18n translation key. */
-export const ERROR_REGISTRY: Record<ErrorCode, ErrorDefinition> = {
+export const ERROR_REGISTRY: Record<ErrorCode, IErrorDefinition> = {
   [ErrorCode.INTERNAL_ERROR]: {
     httpStatus: HttpStatus.INTERNAL_SERVER_ERROR,
     i18nKey: 'ERROR_INTERNAL',

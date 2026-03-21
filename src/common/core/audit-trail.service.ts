@@ -5,7 +5,7 @@ import { marshall } from '@aws-sdk/util-dynamodb';
 /** Supported audit actions. */
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
 
-interface AuditEntry {
+interface IAuditEntry {
   PK: string;
   SK: string;
   entityType: string;
@@ -42,7 +42,7 @@ export class AuditTrailService {
   ): Promise<void> {
     const timestamp = new Date().toISOString();
 
-    const entry: AuditEntry = {
+    const entry: IAuditEntry = {
       // eslint-disable-next-line i18next/no-literal-string
       PK: `TENANT#${tenantId}#AUDIT`,
       // eslint-disable-next-line i18next/no-literal-string

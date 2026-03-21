@@ -45,23 +45,25 @@ import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
  */
 export interface IBaseResource<T, CreateDto, UpdateDto> {
   create(data: CreateDto): Promise<T>;
-  findAll(tenantId: string, options?: PaginationOptions): Promise<PaginatedResult<T>>;
+  findAll(tenantId: string, options?: IPaginationOptions): Promise<IPaginatedResult<T>>;
   findOne(tenantId: string, id: string): Promise<T>;
   update(tenantId: string, id: string, data: UpdateDto): Promise<T>;
   remove(tenantId: string, id: string): Promise<T>;
 }
 
 /** Options for cursor-based DynamoDB pagination. */
-export interface PaginationOptions {
+export interface IPaginationOptions {
   limit?: number;
   cursor?: string;
 }
 
 /** Paginated result with items and optional next cursor. */
-export interface PaginatedResult<T> {
+export interface IPaginatedResult<T> {
   items: T[];
   cursor?: string;
 }
+
+type DynamoAttributeValue = import('@aws-sdk/client-dynamodb').AttributeValue;
 
 @Injectable()
 export abstract class BaseResourceService<T, CreateDto, UpdateDto>
@@ -148,10 +150,10 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
     return item as T;
   }
 
-  async findAll(tenantId: string, options?: PaginationOptions): Promise<PaginatedResult<T>> {
+  async findAll(tenantId: string, options?: IPaginationOptions): Promise<IPaginatedResult<T>> {
     const pk = this.getPk(tenantId);
     try {
-      const queryOptions: { limit?: number; exclusiveStartKey?: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> } = {};
+      const queryOptions: { limit?: number; exclusiveStartKey?: Record<string, DynamoAttributeValue> } = {};
 
       if (options?.limit) {
         queryOptions.limit = options.limit;
@@ -159,7 +161,7 @@ export abstract class BaseResourceService<T, CreateDto, UpdateDto>
       if (options?.cursor) {
         queryOptions.exclusiveStartKey = JSON.parse(
           Buffer.from(options.cursor, 'base64').toString('utf-8'),
-        );
+        ) as Record<string, DynamoAttributeValue>;
       }
 
       const result = await this.dynamo.query(this.tableName, pk, queryOptions);

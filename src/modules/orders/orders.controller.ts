@@ -15,6 +15,8 @@ interface ITenantRequest extends Request {
   tenantId: string;
 }
 
+const MSG_UNAUTHORIZED = 'Unauthorized';
+
 /**
  * Orders REST Controller.
  * All endpoints require `x-tenant-id` header for multi-tenancy.
@@ -32,8 +34,8 @@ export class OrdersController {
   @ApiOperation({ summary: 'Create an order' })
   @ApiResponse({ status: 201, description: 'Order created', type: OrderResponseDto })
   @ApiResponse({ status: 400, description: 'Validation failed' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async create(@Req() req: ITenantRequest, @Body() dto: CreateOrderDto) {
+  @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
+  async create(@Req() req: ITenantRequest, @Body() dto: CreateOrderDto): Promise<OrderResponseDto> {
     return this.ordersService.create({ ...dto, tenantId: req.tenantId } as unknown as CreateOrderDto);
   }
 
@@ -42,7 +44,7 @@ export class OrdersController {
   @Version('1')
   @ApiOperation({ summary: 'List all orders (paginated)' })
   @ApiResponse({ status: 200, description: 'Paginated orders list' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async findAll(@Req() req: ITenantRequest, @Query() pagination: PaginationQueryDto) {
     return this.ordersService.findAll(req.tenantId, pagination);
   }
@@ -53,7 +55,7 @@ export class OrdersController {
   @ApiOperation({ summary: 'Get order by ID' })
   @ApiResponse({ status: 200, description: 'Order found', type: OrderResponseDto })
   @ApiResponse({ status: 404, description: 'Order not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async findOne(@Req() req: ITenantRequest, @Param('id') id: string) {
     return this.ordersService.findOne(req.tenantId, id);
   }
@@ -64,7 +66,7 @@ export class OrdersController {
   @ApiOperation({ summary: 'Update order' })
   @ApiResponse({ status: 200, description: 'Order updated', type: OrderResponseDto })
   @ApiResponse({ status: 404, description: 'Order not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async update(
     @Req() req: ITenantRequest,
     @Param('id') id: string,
@@ -79,7 +81,7 @@ export class OrdersController {
   @ApiOperation({ summary: 'Soft-delete order' })
   @ApiResponse({ status: 200, description: 'Order soft-deleted', type: OrderResponseDto })
   @ApiResponse({ status: 404, description: 'Order not found' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 401, description: MSG_UNAUTHORIZED })
   async remove(@Req() req: ITenantRequest, @Param('id') id: string) {
     return this.ordersService.remove(req.tenantId, id);
   }

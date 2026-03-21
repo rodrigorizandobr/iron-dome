@@ -8,8 +8,10 @@ import { IS_PUBLIC_KEY } from './public.decorator';
  * Protects all endpoints by default.
  * Use `@Public()` decorator to skip authentication on specific routes.
  */
+const JWT_STRATEGY = 'jwt';
+
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class JwtAuthGuard extends AuthGuard(JWT_STRATEGY) {
   constructor(private reflector: Reflector) {
     super();
   }

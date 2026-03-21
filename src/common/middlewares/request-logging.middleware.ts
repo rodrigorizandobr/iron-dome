@@ -18,7 +18,9 @@ export class RequestLoggingMiddleware implements NestMiddleware {
       const duration = Date.now() - start;
       const { statusCode } = res;
 
-      const level = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'log';
+      type LogLevel = 'error' | 'warn' | 'log';
+      // eslint-disable-next-line i18next/no-literal-string
+      const level: LogLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'log';
       const message =
         // eslint-disable-next-line i18next/no-literal-string
         `${method} ${originalUrl} ${statusCode} ${duration}ms` +

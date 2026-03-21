@@ -23,6 +23,7 @@ export function validateEnv(): void {
   }
 
   if (missing.length > 0) {
+    // eslint-disable-next-line i18next/no-literal-string
     const msg = `Missing required env vars: ${missing.join(', ')}`;
     logger.error(msg);
     throw new Error(msg);
