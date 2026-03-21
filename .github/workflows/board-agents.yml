@@ -20,7 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+        with:
+          node-version: '22'
       - run: npm ci
       
       - name: Refinar Issue (IA)
@@ -50,7 +51,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+        with:
+          node-version: '22'
       - run: npm ci
       
       - name: Configurar Git e Branch
@@ -97,7 +99,8 @@ jobs:
       - name: Checkout da branch da Issue
         run: git checkout feat/issue-${{ github.event.issue.number }} || echo "Aviso: Branch não encontrada!"
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+        with:
+          node-version: '22'
       - run: npm ci
 
       - name: Desenvolver Testes Unitários (IA)
@@ -135,20 +138,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: git checkout feat/issue-${{ github.event.issue.number }}
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+        with:
+          node-version: '22'
       - run: npm ci
 
       - name: Rodar Testes Unitários e Cobertura
         id: run_tests
         run: |
           if npm run test:unit -- --coverage > test_output.txt 2>&1; then
-            echo "status=pass" >> $GITHUB_ENV
+            echo "status=pass" >> $GITHUB_OUTPUT
           else
-            echo "status=fail" >> $GITHUB_ENV
+            echo "status=fail" >> $GITHUB_OUTPUT
           fi
 
       - name: Sucesso -> Move para PR
-        if: env.status == 'pass'
+        if: steps.run_tests.outputs.status == 'pass'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
@@ -159,17 +163,18 @@ jobs:
           npx ts-node scripts/move-card.ts "pr"
 
       - name: Falha -> Volta para DEV
-        if: env.status == 'fail'
+        if: steps.run_tests.outputs.status == 'fail'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          TEST_LOG=$(cat test_output.txt)
           gh issue comment ${{ github.event.issue.number }} --body "❌ **Testes Falharam.** Retornando para a IA arrumar.
           <details><summary>Log do Erro (Jest)</summary>
           
-          \`\`\`text
-          $(cat test_output.txt)
+          \`\`\`
+          $TEST_LOG
           \`\`\`
           </details>"
           gh issue edit ${{ github.event.issue.number }} --remove-label "testing"
@@ -185,20 +190,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: git checkout feat/issue-${{ github.event.issue.number }}
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+        with:
+          node-version: '22'
       - run: npm ci
 
       - name: CI (Lint e Testes Integrados)
         id: ci_check
         run: |
           if npm run lint && npm run test:integrated > ci_output.txt 2>&1; then
-            echo "status=pass" >> $GITHUB_ENV
+            echo "status=pass" >> $GITHUB_OUTPUT
           else
-            echo "status=fail" >> $GITHUB_ENV
+            echo "status=fail" >> $GITHUB_OUTPUT
           fi
 
       - name: Sucesso -> Cria Pull Request e Move para Done
-        if: env.status == 'pass'
+        if: steps.ci_check.outputs.status == 'pass'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
@@ -210,17 +216,18 @@ jobs:
           npx ts-node scripts/move-card.ts "done"
 
       - name: Falha -> Volta para DEV
-        if: env.status == 'fail'
+        if: steps.ci_check.outputs.status == 'fail'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          CI_LOG=$(cat ci_output.txt)
           gh issue comment ${{ github.event.issue.number }} --body "❌ **CI Falhou (Lint/Integrado).** Retornando para Dev para correção.
           <details><summary>Log do Erro</summary>
           
-          \`\`\`text
-          $(cat ci_output.txt)
+          \`\`\`
+          $CI_LOG
           \`\`\`
           </details>"
           gh issue edit ${{ github.event.issue.number }} --remove-label "pr"
