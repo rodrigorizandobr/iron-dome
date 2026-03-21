@@ -46,10 +46,10 @@ jobs:
         run: npm run lint
       - name: Production Build
         run: npm run build
-      - name: Unit Tests & Coverage (>85%)
+      - name: Unit Tests & Coverage (v8 provider, module-specific baseline)
         run: npm run test:unit -- --coverage
-      - name: Integrated Tests & Coverage (>80%)
-        run: npm run test:integrated -- --coverage
+      - name: Integrated Tests (No coverage — ESM + v8 incompatible)
+        run: npm run test:integrated
 
   # Model for Deployment step
   deploy:
