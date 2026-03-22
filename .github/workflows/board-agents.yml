@@ -20,14 +20,15 @@ on:
         required: true
         type: number
 
-  # 🎯 Trigger 2: Quando issue é aberta (ex: cria card no Projects)
-  issues:
-    types: [opened]
+  # 🎯 Trigger 2: Card movido entre colunas no GitHub Projects v2
+  projects_v2_item:
+    types: [edited]
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
+  projects: read
 
 jobs:
   # Validate workflow was triggered with inputs
@@ -39,29 +40,55 @@ jobs:
     steps:
       - name: ✅ Validate and Output Stage
         id: validate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Detecta qual trigger disparou (workflow_dispatch vs issues.opened)
           TRIGGER="${{ github.event_name }}"
+          STAGE=""
+          ISSUE=""
 
           if [ "$TRIGGER" = "workflow_dispatch" ]; then
-            # Manual dispatch: use inputs explicitamente
             STAGE="${{ github.event.inputs.stage }}"
             ISSUE="${{ github.event.inputs.issue_number }}"
-          elif [ "$TRIGGER" = "issues" ]; then
-            # Automático (issue criada): sempre começa em refinament
-            STAGE="refinament"
-            ISSUE="${{ github.event.issue.number }}"
-          else
-            STAGE="refinament"
-            ISSUE="${{ github.event.issue.number }}"
+
+          elif [ "$TRIGGER" = "projects_v2_item" ]; then
+            CONTENT_TYPE="${{ github.event.projects_v2_item.content_type }}"
+            FIELD_NAME="${{ github.event.changes.field_value.field_name }}"
+
+            if [ "$CONTENT_TYPE" = "Issue" ] && [ "$FIELD_NAME" = "Status" ]; then
+              COLUMN="${{ github.event.changes.field_value.to.name }}"
+              echo "📌 Card movido para coluna: '$COLUMN'"
+
+              # Mapeia nome da coluna para stage do agente
+              case "$COLUMN" in
+                [Rr]efinament*) STAGE="refinament" ;;
+                [Dd]ev-[Tt]est*|[Dd]ev\ [Tt]est*) STAGE="dev-test" ;;
+                [Dd]ev) STAGE="dev" ;;
+                [Tt]esting*|[Tt]estes*|[Tt]este) STAGE="testing" ;;
+                [Pp][Rr]|[Pp]ull\ [Rr]equest) STAGE="pr" ;;
+                *) echo "⏭️ Coluna '$COLUMN' sem agente mapeado — ignorando" ;;
+              esac
+
+              if [ -n "$STAGE" ]; then
+                NODE_ID="${{ github.event.projects_v2_item.content_node_id }}"
+                ISSUE=$(gh api graphql \
+                  -f query='query($id:ID!){node(id:$id){...on Issue{number}}}' \
+                  -f id="$NODE_ID" \
+                  --jq '.data.node.number')
+                echo "🔢 Issue resolvida: #$ISSUE"
+              fi
+            else
+              echo "⏭️ Evento não é mudança de Status em Issue — ignorando"
+            fi
           fi
 
           echo "stage=$STAGE" >> $GITHUB_OUTPUT
           echo "issue=$ISSUE" >> $GITHUB_OUTPUT
           echo "🎯 Trigger: $TRIGGER | Stage: $STAGE | Issue: #$ISSUE"
 
-          if [ -z "$STAGE" ] || [ -z "$ISSUE" ]; then
-            echo "❌ ERROR: Could not determine stage or issue!"
+          # Só falha se for dispatch manual sem valores
+          if [ "$TRIGGER" = "workflow_dispatch" ] && { [ -z "$STAGE" ] || [ -z "$ISSUE" ]; }; then
+            echo "❌ ERROR: workflow_dispatch requer stage e issue_number!"
             exit 1
           fi
 
