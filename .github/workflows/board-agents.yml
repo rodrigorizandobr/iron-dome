@@ -107,16 +107,32 @@ jobs:
           node-version: '22'
       - run: npm ci
 
+      - name: � Carregar Agent Instructions
+        id: agent_instructions
+        run: |
+          AGENT_FILE=".github/agents/refinement.agent.md"
+          if [ -f "$AGENT_FILE" ]; then
+            echo "✅ Agent file found: $AGENT_FILE"
+            CONTENT=$(cat "$AGENT_FILE")
+            echo "instructions<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Agent file not found: $AGENT_FILE"
+            echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
+          fi
+
       - name: 🔍 Refinar Issue (IA)
         env:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_INSTRUCTIONS: ${{ steps.agent_instructions.outputs.instructions }}
         run: npx ts-node scripts/agents/refinament.ts 2>/dev/null || echo "Agent script not yet implemented"
 
       - name: ✅ Avançar para Dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
         run: |
           gh issue edit ${{ needs.validate.outputs.issue }} --add-label "dev" || true
           gh issue comment ${{ needs.validate.outputs.issue }} --body "✅ **Refinement Complete.** Manual: Run workflow again with stage=dev" || true
@@ -143,11 +159,27 @@ jobs:
           git fetch origin
           git checkout -b feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || git checkout feat/issue-${{ needs.validate.outputs.issue }}
 
+      - name: � Carregar Agent Instructions
+        id: agent_instructions
+        run: |
+          AGENT_FILE=".github/agents/dev.agent.md"
+          if [ -f "$AGENT_FILE" ]; then
+            echo "✅ Agent file found: $AGENT_FILE"
+            CONTENT=$(cat "$AGENT_FILE")
+            echo "instructions<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Agent file not found: $AGENT_FILE"
+            echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
+          fi
+
       - name: 💻 Desenvolver Código (IA)
         env:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_INSTRUCTIONS: ${{ steps.agent_instructions.outputs.instructions }}
         run: npx ts-node scripts/agents/dev.ts 2>/dev/null || echo "Agent script not yet implemented"
 
       - name: 📝 Commitar e Avisar
@@ -182,10 +214,27 @@ jobs:
           node-version: '22'
       - run: npm ci
 
+      - name: 📄 Carregar Agent Instructions
+        id: agent_instructions
+        run: |
+          AGENT_FILE=".github/agents/dev-test.agent.md"
+          if [ -f "$AGENT_FILE" ]; then
+            echo "✅ Agent file found: $AGENT_FILE"
+            CONTENT=$(cat "$AGENT_FILE")
+            echo "instructions<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Agent file not found: $AGENT_FILE"
+            echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
+          fi
+
       - name: 🧪 Desenvolver Testes Unitários (IA)
         env:
           COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AGENT_INSTRUCTIONS: ${{ steps.agent_instructions.outputs.instructions }}
         run: npx ts-node scripts/agents/dev-test.ts 2>/dev/null || echo "Agent script not yet implemented"
 
       - name: 📝 Commitar Testes
@@ -219,6 +268,21 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+
+      - name: 📄 Carregar Agent Instructions
+        id: agent_instructions
+        run: |
+          AGENT_FILE=".github/agents/testing.agent.md"
+          if [ -f "$AGENT_FILE" ]; then
+            echo "✅ Agent file found: $AGENT_FILE"
+            CONTENT=$(cat "$AGENT_FILE")
+            echo "instructions<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Agent file not found: $AGENT_FILE"
+            echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
+          fi
 
       - name: ✅ Rodar Testes Unitários e Cobertura
         id: run_tests
@@ -265,7 +329,22 @@ jobs:
           node-version: '22'
       - run: npm ci
 
-      - name: 🔐 CI (Lint + Build + Testes Integrados)
+      - name: � Carregar Agent Instructions
+        id: agent_instructions
+        run: |
+          AGENT_FILE=".github/agents/pr.agent.md"
+          if [ -f "$AGENT_FILE" ]; then
+            echo "✅ Agent file found: $AGENT_FILE"
+            CONTENT=$(cat "$AGENT_FILE")
+            echo "instructions<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Agent file not found: $AGENT_FILE"
+            echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
+          fi
+
+      - name: �🔐 CI (Lint + Build + Testes Integrados)
         id: ci_check
         run: |
           if npm run lint && npm run build && npm run test:integrated > ci_output.txt 2>&1; then
