@@ -309,25 +309,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          UNIT_SUMMARY=$(grep -A2 "Unit Tests" ci_output.txt | head -3 || echo "")
-          INT_SUMMARY=$(grep -A2 "Integration Tests" ci_output.txt | head -3 || echo "")
-
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "## ✅ CI Passed — Pronto para PR
-
-**Branch**: \`feat/issue-${{ needs.validate.outputs.issue }}\`
-
-| Gate | Status |
-|------|--------|
-| Security Audit (prod) | ✅ 0 vulnerabilidades |
-| Prettier | ✅ Formatado |
-| ESLint | ✅ 0 erros |
-| Build | ✅ Compilado |
-| Unit Tests + Coverage | ✅ Passou |
-| Integration Tests | ✅ Passou |
-
-> 🚀 Execute o workflow com \`stage=pr\` para criar o Pull Request." || true
-
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "pr" || true
+          ISSUE_NUM="${{ needs.validate.outputs.issue }}"
+          BRANCH="feat/issue-${ISSUE_NUM}"
+          BODY="## CI Passou - Pronto para PR\n\nBranch: \`${BRANCH}\`\n\nGates: Security Audit, Prettier, ESLint, Build, Unit Tests, Integration Tests - todos passaram.\n\nExecute o workflow com stage=pr para criar o Pull Request."
+          printf "%b" "$BODY" > /tmp/comment_pass.md
+          gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_pass.md || true
+          gh issue edit "$ISSUE_NUM" --add-label "pr" || true
 
       - name: ❌ CI Falhou → Evidência + Retorno para Dev
         if: steps.run_ci.outputs.status == 'fail'
@@ -335,53 +322,39 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           FAILED_GATE="${{ steps.run_ci.outputs.failed_gate }}"
+          ISSUE_NUM="${{ needs.validate.outputs.issue }}"
+          BRANCH="feat/issue-${ISSUE_NUM}"
 
-          # Captura as primeiras 80 linhas relevantes do erro
-          CI_LOG=$(cat ci_output.txt | head -80)
+          CI_LOG=$(cat ci_output.txt | head -60 | sed 's/`/'"'"'/g')
+          ERROR_FILE=$(grep -oE 'src/[^ ]+\.(ts|js)' ci_output.txt | head -1 || echo "N/A")
+          ERROR_LINE=$(grep -oE ':[0-9]+:[0-9]+' ci_output.txt | head -1 | cut -d: -f2 || echo "N/A")
 
-          # Tenta identificar arquivo e linha do erro
-          ERROR_FILE=$(grep -oE 'src/[^ ]+\.(ts|js)' ci_output.txt | head -1 || echo "")
-          ERROR_LINE=$(grep -oE ':[0-9]+:[0-9]+' ci_output.txt | head -1 | cut -d: -f2 || echo "")
-
-          # Detecta tipo de erro para diagnóstico
           DIAG=""
           if grep -q "no-unsafe-member-access\|no-unsafe-call\|no-unsafe-argument" ci_output.txt; then
-            DIAG="**ESLint**: Falta cast de tipo ou import de jest em ESM. Ver padrões no dev-test.agent.md."
+            DIAG="ESLint: Falta cast de tipo ou import de jest em ESM. Ver padrões no dev-test.agent.md."
           elif grep -q "removeUndefinedValues\|is not a function" ci_output.txt; then
-            DIAG="**Mock incompleto**: Método faltando no mock do DynamoDBProvider ou SNSProvider."
+            DIAG="Mock incompleto: Método faltando no mock do DynamoDBProvider ou SNSProvider."
           elif grep -q "mockResolvedValue\|Type.*never" ci_output.txt; then
-            DIAG="**ESM Mock**: Trocar \`mockResolvedValue\` por \`mockImplementation(() => Promise.resolve(...))\`."
+            DIAG="ESM Mock: Trocar mockResolvedValue por mockImplementation(() => Promise.resolve(...))."
           elif grep -q "coverageThreshold\|Coverage" ci_output.txt; then
-            DIAG="**Cobertura insuficiente**: Branch ou função não testada. Adicionar caso de teste."
+            DIAG="Cobertura insuficiente: Branch ou função não testada. Adicionar caso de teste."
           elif grep -q "expected.*got\|expect(" ci_output.txt; then
-            DIAG="**Asserção falhou**: Verificar se \`MultiTenancyMiddleware\` está aplicado e mocks retornam dados corretos."
+            DIAG="Asserção falhou: Verificar se MultiTenancyMiddleware está aplicado e mocks retornam dados corretos."
           elif grep -q "error TS\|Cannot find\|Module not found" ci_output.txt; then
-            DIAG="**Build/TypeScript**: Erro de compilação. Verificar imports e tipos."
+            DIAG="Build/TypeScript: Erro de compilação. Verificar imports e tipos."
           elif grep -q "vulnerabilit" ci_output.txt; then
-            DIAG="**Security Audit**: Vulnerabilidade encontrada. Atualizar dependência afetada."
+            DIAG="Security Audit: Vulnerabilidade encontrada. Atualizar dependência afetada."
           fi
 
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "## ❌ CI Failed — Gate: ${FAILED_GATE}
-
-**Branch**: \`feat/issue-${{ needs.validate.outputs.issue }}\`
-
-**Log do CI** (primeiras 80 linhas):
-\`\`\`
-${CI_LOG}
-\`\`\`
-
-**Arquivo identificado**: \`${ERROR_FILE}\` linha ${ERROR_LINE}
-
-**Diagnóstico**: ${DIAG}
-
-> 🔁 Retornando para Dev Agent. Execute o workflow com \`stage=dev\` e \`issue=${{ needs.validate.outputs.issue }}\`." || true
-
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "dev" || true
+          BODY="## CI Falhou - Gate: ${FAILED_GATE}\n\nBranch: \`${BRANCH}\`\n\nArquivo: \`${ERROR_FILE}\` linha ${ERROR_LINE}\n\nDiagnostico: ${DIAG}\n\nRetornando para Dev Agent. Execute o workflow com stage=dev e issue=${ISSUE_NUM}.\n\nLog (primeiras 60 linhas):\n\`\`\`\n${CI_LOG}\n\`\`\`"
+          printf "%b" "$BODY" > /tmp/comment_fail.md
+          gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_fail.md || true
+          gh issue edit "$ISSUE_NUM" --add-label "dev" || true
           echo "❌ CI falhou no gate: $FAILED_GATE — retornando para dev"
           exit 1
 
   # ==========================================
-  # 5. PR (Integração e Done)
+  # 5. PR (Criacao de PR + Move para Done)
   # ==========================================
   agent-pr:
     needs: [validate]
@@ -389,54 +362,229 @@ ${CI_LOG}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: git fetch origin && git checkout feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || true
-      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npm ci
+          fetch-depth: 0
 
-      - name: � Carregar Agent Instructions
+      - name: Carregar Agent Instructions
         id: agent_instructions
         run: |
           AGENT_FILE=".github/agents/pr.agent.md"
           if [ -f "$AGENT_FILE" ]; then
-            echo "✅ Agent file found: $AGENT_FILE"
+            echo "Agent file found: $AGENT_FILE"
             CONTENT=$(cat "$AGENT_FILE")
             echo "instructions<<EOF" >> $GITHUB_OUTPUT
             echo "$CONTENT" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Agent file not found: $AGENT_FILE"
+            echo "Agent file not found: $AGENT_FILE"
             echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
           fi
 
-      - name: �🔐 CI (Lint + Build + Testes Integrados)
-        id: ci_check
+      - name: Criar Pull Request
+        id: create_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if npm run lint && npm run build && npm run test:integrated > ci_output.txt 2>&1; then
-            echo "status=pass" >> $GITHUB_OUTPUT
-          else
-            echo "status=fail" >> $GITHUB_OUTPUT
+          ISSUE="${{ needs.validate.outputs.issue }}"
+
+          # Busca dados da issue
+          ISSUE_DATA=$(gh issue view "$ISSUE" --json title,body)
+          ISSUE_TITLE=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['title'])")
+          ISSUE_BODY=$(echo "$ISSUE_DATA" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('body','') or '')")
+
+          # Monta descricao do PR
+          PR_BODY="## Resumo\n\n${ISSUE_BODY}\n\n## Pipeline\n\n- [x] Refinement\n- [x] Dev\n- [x] Dev-Test\n- [x] Testing\n- [ ] Review & Merge\n\nCloses #${ISSUE}\n\n---\n*Criado automaticamente pelo Board Agents pipeline.*"
+
+          BRANCH="feat/issue-${ISSUE}"
+
+          # Verifica se branch existe
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "Branch $BRANCH nao encontrada no remoto."
+            exit 1
           fi
 
-      - name: 🎉 CI Passou → Cria PR e Move para Done
-        if: steps.ci_check.outputs.status == 'pass'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-        run: |
-          gh pr create --title "feat: Issue #${{ needs.validate.outputs.issue }}" --body "Auto-generated PR from Board Agents workflow." --base main --head feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || echo "PR already exists"
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "🎉 **Pipeline Complete!** PR created and ready for merge." || true
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "done" || true
-          echo "✅ Done! Issue #${{ needs.validate.outputs.issue }} completed successfully"
+          # Cria PR (ou obtem URL se ja existir)
+          PR_URL=$(gh pr create \
+            --title "feat: ${ISSUE_TITLE} (closes #${ISSUE})" \
+            --body "$(echo -e "$PR_BODY")" \
+            --base main \
+            --head "$BRANCH" 2>&1) || PR_URL=$(gh pr view "$BRANCH" --json url -q .url 2>/dev/null)
 
-      - name: ❌ CI Falhou → Volta para DEV
-        if: steps.ci_check.outputs.status == 'fail'
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "PR URL: $PR_URL"
+
+      - name: Mover Card para Done via Projects v2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
         run: |
-          CI_LOG=$(cat ci_output.txt | head -50)
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "❌ **CI Failed.** Back to Dev: \`\`\`$CI_LOG\`\`\`" || true
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "dev" || true
-          echo "CI failed. Back to: stage=dev and issue=${{ needs.validate.outputs.issue }}"
+          ISSUE="${{ needs.validate.outputs.issue }}"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+
+          python3 << 'PYEOF'
+          import subprocess, json, os, sys
+
+          issue = os.environ["ISSUE"]
+          owner = os.environ["OWNER"]
+          repo = os.environ["REPO"]
+          project_number = os.environ.get("PROJECT_NUMBER", "")
+          token = os.environ["GH_TOKEN"]
+
+          if not project_number:
+              print("PROJECT_NUMBER nao configurado, pulando movimentacao de card.")
+              sys.exit(0)
+
+          def graphql(query, variables=None):
+              payload = {"query": query}
+              if variables:
+                  payload["variables"] = variables
+              cmd = [
+                  "curl", "-s", "-H", f"Authorization: Bearer {token}",
+                  "-H", "Content-Type: application/json",
+                  "-X", "POST",
+                  "--data", json.dumps(payload),
+                  "https://api.github.com/graphql"
+              ]
+              result = subprocess.run(cmd, capture_output=True, text=True)
+              return json.loads(result.stdout)
+
+          # 1. Busca project ID, Status field ID, opcao Done e item da issue
+          query = """
+          query($owner: String!, $number: Int!) {
+            repositoryOwner(login: $owner) {
+              ... on User {
+                projectV2(number: $number) {
+                  id
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options { id name }
+                      }
+                    }
+                  }
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content {
+                        ... on Issue {
+                          number
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              ... on Organization {
+                projectV2(number: $number) {
+                  id
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options { id name }
+                      }
+                    }
+                  }
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content {
+                        ... on Issue {
+                          number
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          """
+
+          data = graphql(query, {"owner": owner, "number": int(project_number)})
+          owner_data = data.get("data", {}).get("repositoryOwner", {})
+          project = owner_data.get("projectV2")
+
+          if not project:
+              print("Projeto nao encontrado. Verifique PROJECT_NUMBER e permissoes.")
+              sys.exit(0)
+
+          project_id = project["id"]
+
+          # Encontra campo Status
+          status_field = None
+          for field in project["fields"]["nodes"]:
+              if field.get("name", "").lower() == "status":
+                  status_field = field
+                  break
+
+          if not status_field:
+              print("Campo Status nao encontrado no projeto.")
+              sys.exit(0)
+
+          # Encontra opcao "Done"
+          done_option = None
+          for opt in status_field.get("options", []):
+              if opt["name"].lower() in ("done", "concluido", "concluída", "finalizado"):
+                  done_option = opt
+                  break
+
+          if not done_option:
+              print(f"Opcao Done nao encontrada. Opcoes disponiveis: {[o['name'] for o in status_field['options']]}")
+              sys.exit(0)
+
+          # Encontra item da issue
+          item_id = None
+          for item in project["items"]["nodes"]:
+              content = item.get("content") or {}
+              if content.get("number") == int(issue):
+                  item_id = item["id"]
+                  break
+
+          if not item_id:
+              print(f"Item da issue #{issue} nao encontrado no projeto.")
+              sys.exit(0)
+
+          # 2. Muta campo Status para Done
+          mutation = """
+          mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+            updateProjectV2ItemFieldValue(input: {
+              projectId: $project
+              itemId: $item
+              fieldId: $field
+              value: { singleSelectOptionId: $value }
+            }) {
+              projectV2Item { id }
+            }
+          }
+          """
+          variables = {
+              "project": project_id,
+              "item": item_id,
+              "field": status_field["id"],
+              "value": done_option["id"]
+          }
+          result = graphql(mutation, variables)
+          errors = result.get("errors")
+          if errors:
+              print(f"Erro ao mover card: {errors}")
+          else:
+              print(f"Card da issue #{issue} movido para '{done_option['name']}' com sucesso.")
+
+          PYEOF
+        env:
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+
+      - name: Comentar na Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE="${{ needs.validate.outputs.issue }}"
+          PR_URL="${{ steps.create_pr.outputs.pr_url }}"
+          gh issue comment "$ISSUE" --body "Pipeline completo! PR criado: ${PR_URL}. Card movido para **Done**." || true
