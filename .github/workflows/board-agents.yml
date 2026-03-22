@@ -59,14 +59,15 @@ jobs:
               COLUMN="${{ github.event.changes.field_value.to.name }}"
               echo "📌 Card movido para coluna: '$COLUMN'"
 
-              # Mapeia nome da coluna para stage do agente
+              # Mapeia nome exato da coluna para stage do agente
               case "$COLUMN" in
-                [Rr]efinament*) STAGE="refinament" ;;
-                [Dd]ev-[Tt]est*|[Dd]ev\ [Tt]est*) STAGE="dev-test" ;;
-                [Dd]ev) STAGE="dev" ;;
-                [Tt]esting*|[Tt]estes*|[Tt]este) STAGE="testing" ;;
-                [Pp][Rr]|[Pp]ull\ [Rr]equest) STAGE="pr" ;;
-                *) echo "⏭️ Coluna '$COLUMN' sem agente mapeado — ignorando" ;;
+                "refinement") STAGE="refinament" ;;
+                "dev")        STAGE="dev" ;;
+                "dev-test")   STAGE="dev-test" ;;
+                "testing")    STAGE="testing" ;;
+                "pr")         STAGE="pr" ;;
+                "to-do"|"done") echo "⏭️ Coluna '$COLUMN' sem agente — ignorando" ;;
+                *) echo "⏭️ Coluna desconhecida '$COLUMN' — ignorando" ;;
               esac
 
               if [ -n "$STAGE" ]; then
