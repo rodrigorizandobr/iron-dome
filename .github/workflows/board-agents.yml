@@ -274,45 +274,111 @@ jobs:
         run: |
           AGENT_FILE=".github/agents/testing.agent.md"
           if [ -f "$AGENT_FILE" ]; then
-            echo "✅ Agent file found: $AGENT_FILE"
             CONTENT=$(cat "$AGENT_FILE")
             echo "instructions<<EOF" >> $GITHUB_OUTPUT
             echo "$CONTENT" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Agent file not found: $AGENT_FILE"
             echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
           fi
 
-      - name: ✅ Rodar Testes Unitários e Cobertura
-        id: run_tests
+      - name: 🔄 Rodar CI Completo
+        id: run_ci
         run: |
-          if npm run test:unit -- --coverage > test_output.txt 2>&1; then
+          # Roda todos os gates e captura saída completa
+          npm run ci > ci_output.txt 2>&1
+          CI_EXIT=$?
+
+          # Detecta qual gate falhou
+          FAILED_GATE="unknown"
+          if grep -q "❌ FAIL" ci_output.txt; then
+            FAILED_GATE=$(grep "❌ FAIL" ci_output.txt | head -1 | sed 's/.*❌ FAIL — //')
+          fi
+
+          echo "exit_code=$CI_EXIT" >> $GITHUB_OUTPUT
+          echo "failed_gate=$FAILED_GATE" >> $GITHUB_OUTPUT
+
+          if [ $CI_EXIT -eq 0 ]; then
             echo "status=pass" >> $GITHUB_OUTPUT
           else
             echo "status=fail" >> $GITHUB_OUTPUT
           fi
 
-      - name: ✅ Testes Passaram → Move para PR
-        if: steps.run_tests.outputs.status == 'pass'
+      - name: ✅ CI Passou → Avança para PR
+        if: steps.run_ci.outputs.status == 'pass'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
         run: |
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "✅ **Tests Passed!** Coverage OK. Manual: Run workflow with stage=pr" || true
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "pr" || true
-          echo "Next: Execute workflow_dispatch with stage=pr and issue=${{ needs.validate.outputs.issue }}"
+          UNIT_SUMMARY=$(grep -A2 "Unit Tests" ci_output.txt | head -3 || echo "")
+          INT_SUMMARY=$(grep -A2 "Integration Tests" ci_output.txt | head -3 || echo "")
 
-      - name: ❌ Testes Falharam → Volta para DEV
-        if: steps.run_tests.outputs.status == 'fail'
+          gh issue comment ${{ needs.validate.outputs.issue }} --body "## ✅ CI Passed — Pronto para PR
+
+**Branch**: \`feat/issue-${{ needs.validate.outputs.issue }}\`
+
+| Gate | Status |
+|------|--------|
+| Security Audit (prod) | ✅ 0 vulnerabilidades |
+| Prettier | ✅ Formatado |
+| ESLint | ✅ 0 erros |
+| Build | ✅ Compilado |
+| Unit Tests + Coverage | ✅ Passou |
+| Integration Tests | ✅ Passou |
+
+> 🚀 Execute o workflow com \`stage=pr\` para criar o Pull Request." || true
+
+          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "pr" || true
+
+      - name: ❌ CI Falhou → Evidência + Retorno para Dev
+        if: steps.run_ci.outputs.status == 'fail'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
         run: |
-          TEST_LOG=$(cat test_output.txt | head -50)
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "❌ **Tests Failed.** Back to Dev for fixes: \`\`\`$TEST_LOG\`\`\`" || true
+          FAILED_GATE="${{ steps.run_ci.outputs.failed_gate }}"
+
+          # Captura as primeiras 80 linhas relevantes do erro
+          CI_LOG=$(cat ci_output.txt | head -80)
+
+          # Tenta identificar arquivo e linha do erro
+          ERROR_FILE=$(grep -oE 'src/[^ ]+\.(ts|js)' ci_output.txt | head -1 || echo "")
+          ERROR_LINE=$(grep -oE ':[0-9]+:[0-9]+' ci_output.txt | head -1 | cut -d: -f2 || echo "")
+
+          # Detecta tipo de erro para diagnóstico
+          DIAG=""
+          if grep -q "no-unsafe-member-access\|no-unsafe-call\|no-unsafe-argument" ci_output.txt; then
+            DIAG="**ESLint**: Falta cast de tipo ou import de jest em ESM. Ver padrões no dev-test.agent.md."
+          elif grep -q "removeUndefinedValues\|is not a function" ci_output.txt; then
+            DIAG="**Mock incompleto**: Método faltando no mock do DynamoDBProvider ou SNSProvider."
+          elif grep -q "mockResolvedValue\|Type.*never" ci_output.txt; then
+            DIAG="**ESM Mock**: Trocar \`mockResolvedValue\` por \`mockImplementation(() => Promise.resolve(...))\`."
+          elif grep -q "coverageThreshold\|Coverage" ci_output.txt; then
+            DIAG="**Cobertura insuficiente**: Branch ou função não testada. Adicionar caso de teste."
+          elif grep -q "expected.*got\|expect(" ci_output.txt; then
+            DIAG="**Asserção falhou**: Verificar se \`MultiTenancyMiddleware\` está aplicado e mocks retornam dados corretos."
+          elif grep -q "error TS\|Cannot find\|Module not found" ci_output.txt; then
+            DIAG="**Build/TypeScript**: Erro de compilação. Verificar imports e tipos."
+          elif grep -q "vulnerabilit" ci_output.txt; then
+            DIAG="**Security Audit**: Vulnerabilidade encontrada. Atualizar dependência afetada."
+          fi
+
+          gh issue comment ${{ needs.validate.outputs.issue }} --body "## ❌ CI Failed — Gate: ${FAILED_GATE}
+
+**Branch**: \`feat/issue-${{ needs.validate.outputs.issue }}\`
+
+**Log do CI** (primeiras 80 linhas):
+\`\`\`
+${CI_LOG}
+\`\`\`
+
+**Arquivo identificado**: \`${ERROR_FILE}\` linha ${ERROR_LINE}
+
+**Diagnóstico**: ${DIAG}
+
+> 🔁 Retornando para Dev Agent. Execute o workflow com \`stage=dev\` e \`issue=${{ needs.validate.outputs.issue }}\`." || true
+
           gh issue edit ${{ needs.validate.outputs.issue }} --add-label "dev" || true
-          echo "Tests failed. Back to: stage=dev and issue=${{ needs.validate.outputs.issue }}"
+          echo "❌ CI falhou no gate: $FAILED_GATE — retornando para dev"
+          exit 1
 
   # ==========================================
   # 5. PR (Integração e Done)
