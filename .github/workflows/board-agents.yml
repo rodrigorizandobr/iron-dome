@@ -20,15 +20,14 @@ on:
         required: true
         type: number
 
-  # 🎯 Trigger 2: Card movido entre colunas no GitHub Projects v2
-  projects_v2_item:
-    types: [edited]
+  # 🎯 Trigger 2: Issue com label adicionada (equivalente a mover coluna)
+  issues:
+    types: [labeled]
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
-  projects: read
 
 jobs:
   # Validate workflow was triggered with inputs
@@ -51,35 +50,23 @@ jobs:
             STAGE="${{ github.event.inputs.stage }}"
             ISSUE="${{ github.event.inputs.issue_number }}"
 
-          elif [ "$TRIGGER" = "projects_v2_item" ]; then
-            CONTENT_TYPE="${{ github.event.projects_v2_item.content_type }}"
-            FIELD_NAME="${{ github.event.changes.field_value.field_name }}"
+          elif [ "$TRIGGER" = "issues" ]; then
+            LABEL="${{ github.event.label.name }}"
+            echo "Label adicionada: '$LABEL'"
 
-            if [ "$CONTENT_TYPE" = "Issue" ] && [ "$FIELD_NAME" = "Status" ]; then
-              COLUMN="${{ github.event.changes.field_value.to.name }}"
-              echo "📌 Card movido para coluna: '$COLUMN'"
+            # Mapeia label para stage do agente
+            case "$LABEL" in
+              "refinement") STAGE="refinament" ;;
+              "dev")        STAGE="dev" ;;
+              "dev-test")   STAGE="dev-test" ;;
+              "testing")    STAGE="testing" ;;
+              "pr")         STAGE="pr" ;;
+              *) echo "Label '$LABEL' sem agente — ignorando" ;;
+            esac
 
-              # Mapeia nome exato da coluna para stage do agente
-              case "$COLUMN" in
-                "refinement") STAGE="refinament" ;;
-                "dev")        STAGE="dev" ;;
-                "dev-test")   STAGE="dev-test" ;;
-                "testing")    STAGE="testing" ;;
-                "pr")         STAGE="pr" ;;
-                "to-do"|"done") echo "⏭️ Coluna '$COLUMN' sem agente — ignorando" ;;
-                *) echo "⏭️ Coluna desconhecida '$COLUMN' — ignorando" ;;
-              esac
-
-              if [ -n "$STAGE" ]; then
-                NODE_ID="${{ github.event.projects_v2_item.content_node_id }}"
-                ISSUE=$(gh api graphql \
-                  -f query='query($id:ID!){node(id:$id){...on Issue{number}}}' \
-                  -f id="$NODE_ID" \
-                  --jq '.data.node.number')
-                echo "🔢 Issue resolvida: #$ISSUE"
-              fi
-            else
-              echo "⏭️ Evento não é mudança de Status em Issue — ignorando"
+            if [ -n "$STAGE" ]; then
+              ISSUE="${{ github.event.issue.number }}"
+              echo "Issue: #$ISSUE"
             fi
           fi
 
@@ -417,10 +404,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
         run: |
-          ISSUE="${{ needs.validate.outputs.issue }}"
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
 
           python3 << 'PYEOF'
           import subprocess, json, os, sys
@@ -576,10 +563,6 @@ jobs:
               print(f"Card da issue #{issue} movido para '{done_option['name']}' com sucesso.")
 
           PYEOF
-        env:
-          ISSUE: ${{ needs.validate.outputs.issue }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
 
       - name: Comentar na Issue
         env:
