@@ -47,13 +47,13 @@ Se você quer ter controle total:
 
 ## 📋 Etapas do Pipeline (Em Ordem)
 
-| # | Stage | O que faz | Condição para avançar |
-| --- | --- | --- | --- |
-| 1️⃣ | `refinament` | Analisa issue, refina escopo | ✅ Manual (workflow_dispatch) |
-| 2️⃣ | `dev` | Implementa código | ✅ Anterior concluído |
-| 3️⃣ | `dev-test` | Cria testes unitários | ✅ Anterior concluído |
-| 4️⃣ | `testing` | Executa testes + coverage | ✅ Anterior concluído |
-| 5️⃣ | `pr` | Cria PR, run CI final | ✅ Anterior concluído |
+| #   | Stage        | O que faz                    | Condição para avançar         |
+| --- | ------------ | ---------------------------- | ----------------------------- |
+| 1️⃣  | `refinament` | Analisa issue, refina escopo | ✅ Manual (workflow_dispatch) |
+| 2️⃣  | `dev`        | Implementa código            | ✅ Anterior concluído         |
+| 3️⃣  | `dev-test`   | Cria testes unitários        | ✅ Anterior concluído         |
+| 4️⃣  | `testing`    | Executa testes + coverage    | ✅ Anterior concluído         |
+| 5️⃣  | `pr`         | Cria PR, run CI final        | ✅ Anterior concluído         |
 
 ---
 
@@ -145,13 +145,13 @@ gh workflow run board-agents.yml \
 
 Os labels são **adicionados automaticamente** conforme o pipeline avança:
 
-| Label | Quando adicionado |
-| --- | --- |
-| `dev` | Após refinament concluído |
-| `dev-test` | Após dev concluído |
-| `testing` | Após dev-test concluído |
-| `pr` | Após testing bem-sucedido |
-| `done` | Após PR criado com sucesso |
+| Label      | Quando adicionado          |
+| ---------- | -------------------------- |
+| `dev`      | Após refinament concluído  |
+| `dev-test` | Após dev concluído         |
+| `testing`  | Após dev-test concluído    |
+| `pr`       | Após testing bem-sucedido  |
+| `done`     | Após PR criado com sucesso |
 
 > **Sem necessidade de adicionar labels manualmente!**
 
@@ -160,6 +160,7 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
 ## ⚠️ Troubleshooting
 
 ### **"Arrasto o card no Projects, nada acontece"**
+
 - ✅ FIXADO! Agora o workflow dispara automaticamente quando issue é **criada**
 - **Como funciona**:
   1. Você cria uma issue (novo card)
@@ -173,21 +174,25 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
   - Abra **Actions** → **Autonomous Board Agents** → procure por `issues` trigger
 
 ### **"Como avanço para o próximo stage?"**
+
 - Não é automático entre stages (só refinament dispara automático)
 - **Opção 1**: Menu **Actions** → **Run workflow** com próximo stage
 - **Opção 2**: Crie uma issue separada para cada stage (cada uma dispara refinament)
 - **Objetivo futuro**: Implementar automação completa (ainda em desenvolvimento)
 
 ### **"All jobs skipped"**
+
 - ✅ Fixado! Adicionamos job `validate` que sempre roda
 - Verifique os logs do job `validate` para ver os valores extraídos
 - Se stage/issue estão vazios, o workflow foi disparado sem dados
 
 ### **"Integration tests failed"**
+
 - ✅ RESOLVIDO! Agora usamos mocks de DynamoDBProvider
 - Todos os 7+ testes integrados devem passar sem LocalStack
 
 ### **"Workflow disparou mas errou em algum stage"**
+
 - O pipeline volta automaticamente para `dev` com label
 - Você precisa corrigir o código e re-disparar (`stage=dev`)
 
@@ -195,14 +200,14 @@ Os labels são **adicionados automaticamente** conforme o pipeline avança:
 
 ## ✅ Test Status
 
-| Teste | Status | Detalhes |
-| --- | --- | --- |
-| `npm run lint` | ✅ PASS | 0 errors |
-| `npm run format --check` | ✅ PASS | Prettier format |
-| `npm run build` | ✅ PASS | TypeScript compilation |
-| `npm run test:unit` | ✅ PASS | 10/10 testes |
+| Teste                             | Status  | Detalhes                         |
+| --------------------------------- | ------- | -------------------------------- |
+| `npm run lint`                    | ✅ PASS | 0 errors                         |
+| `npm run format --check`          | ✅ PASS | Prettier format                  |
+| `npm run build`                   | ✅ PASS | TypeScript compilation           |
+| `npm run test:unit`               | ✅ PASS | 10/10 testes                     |
 | `npm run test:unit -- --coverage` | ✅ PASS | 84% coverage (orders.service.ts) |
-| `npm run test:integrated` | ✅ PASS | 7/7 testes (mocked DynamoDB) |
+| `npm run test:integrated`         | ✅ PASS | 7/7 testes (mocked DynamoDB)     |
 
 ---
 
@@ -275,19 +280,19 @@ Quando você **arrasta um card para "Refinement"** no Projects:
 ```
 Refinement
   └─ [Criar issue aqui] → Dispara agent-refinament ✅
-      
-Dev 
+
+Dev
   └─ [Manual: Actions > Run workflow > stage=dev]
-      
+
 Dev-Test
   └─ [Manual: Actions > Run workflow > stage=dev-test]
-      
+
 Testing
   └─ [Manual: Actions > Run workflow > stage=testing]
-      
+
 PR
   └─ [Manual: Actions > Run workflow > stage=pr]
-      
+
 Done ✅
 ```
 
@@ -306,45 +311,55 @@ COPILOT_TOKEN: [seu token IA/Copilot]      (será usado depois)
 
 ## 📝 Próximos Passos
 
-- [ ] Integrar realmente com Claude/Copilot API (scripts/agents/*.ts)
+- [ ] Integrar realmente com Claude/Copilot API (scripts/agents/\*.ts)
 - [ ] Testar pipeline completo com issue real criada via Projects
 - [ ] Validar que todos os agents rodando geram código correto
 - [ ] Adicionar automação entre stages (sem manual workflow dispatch)
 - [ ] Dashboard para acompanhar múltiplos boards simultâneos
-   - Commit automático
-        ↓
-✅ Adiciona "testing"
+  - Commit automático
+    ↓
+    ✅ Adiciona "testing"
+
 ```
 
 ### **Etapa 5: Test Runner executa**
 
 ```
+
 🤖 Test Runner:
-   - Executa: npm run test:unit -- --coverage
-   
-   SE PASS ✅ → Adiciona "pr"
-   SE FAIL ❌ → Volta para "dev"
+
+- Executa: npm run test:unit -- --coverage
+
+SE PASS ✅ → Adiciona "pr"
+SE FAIL ❌ → Volta para "dev"
+
 ```
 
 ### **Etapa 6: CI Agent executa**
 
 ```
+
 🤖 CI Agent:
-   - Executa: npm run lint, build, test:integrated
-   
-   SE PASS ✅ → Cria PR automático
-              → Adiciona "done"
-   SE FAIL ❌ → Volta para "dev"
+
+- Executa: npm run lint, build, test:integrated
+
+SE PASS ✅ → Cria PR automático
+→ Adiciona "done"
+SE FAIL ❌ → Volta para "dev"
+
 ```
 
 ### **Etapa 7: Done**
 
 ```
+
 🎉 Issue resolvida completamente
-   - PR criado e mergeável
-   - Testes passando
-   - Coverage > 80%
-```
+
+- PR criado e mergeável
+- Testes passando
+- Coverage > 80%
+
+````
 
 ---
 
@@ -363,7 +378,7 @@ COPILOT_TOKEN: [seu token IA/Copilot]      (será usado depois)
 # Veja os agents trabalhando em tempo real
 
 # 4. Acompanhe progresso na issue via comentários automáticos
-```
+````
 
 ### **Result Esperado**
 
@@ -392,6 +407,7 @@ PR Criado e Issue Movida para Done ✅
 **Causa**: Workflow dispatch não foi chamado corretamente
 
 **Solução**:
+
 1. Se criou issue normalmente → Just wait, workflow deve disparar em segundos
 2. Se quer rodar manualmente → Actions → Autonomous Board Agents → "Run workflow"
 3. Verifique se o GitHub Actions está ativo no repositório
@@ -401,6 +417,7 @@ PR Criado e Issue Movida para Done ✅
 **Causa**: Script do agent não gerou output
 
 **Solução**:
+
 1. Verifique logs em: GitHub Actions → Board Agents → Log detalhado
 2. Verifique se `COPILOT_TOKEN` está configurado em Secrets
 3. Verifique se `PROJECT_NUMBER` está em Vars
@@ -416,6 +433,7 @@ PR Criado e Issue Movida para Done ✅
 ## 🔐 Configuração Necessária (One-time)
 
 O GitHub Actions precisa de:
+
 - `contents: write` — Fazer commits e push
 - `issues: write` — Adicionar/remover labels e comentar
 - `pull-requests: write` — Criar PRs

@@ -42,7 +42,7 @@ jobs:
         run: |
           # Detecta qual trigger disparou (workflow_dispatch vs issues.opened)
           TRIGGER="${{ github.event_name }}"
-          
+
           if [ "$TRIGGER" = "workflow_dispatch" ]; then
             # Manual dispatch: use inputs explicitamente
             STAGE="${{ github.event.inputs.stage }}"
@@ -55,11 +55,11 @@ jobs:
             STAGE="refinament"
             ISSUE="${{ github.event.issue.number }}"
           fi
-          
+
           echo "stage=$STAGE" >> $GITHUB_OUTPUT
           echo "issue=$ISSUE" >> $GITHUB_OUTPUT
           echo "🎯 Trigger: $TRIGGER | Stage: $STAGE | Issue: #$ISSUE"
-          
+
           if [ -z "$STAGE" ] || [ -z "$ISSUE" ]; then
             echo "❌ ERROR: Could not determine stage or issue!"
             exit 1
