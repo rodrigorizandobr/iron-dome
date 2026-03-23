@@ -123,6 +123,15 @@ jobs:
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
           gh issue comment "$ISSUE_NUM" --body "Refinement concluido. Avancando para Dev." || true
           python3 .github/scripts/move-card.py || true
+          
+      - name: 🚀 Disparar Agent Dev automaticamente
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run board-agents.yml \
+            --repo ${{ github.repository }} \
+            -f stage=dev \
+            -f issue_number=${{ needs.validate.outputs.issue }} || true
 
   # ==========================================
   # 2. DEV
@@ -189,6 +198,15 @@ jobs:
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
           gh issue comment "$ISSUE_NUM" --body "Desenvolvimento concluido. Avancando para Dev-Test." || true
           python3 /tmp/move-card.py || true
+          
+      - name: 🚀 Disparar Agent Dev-Test automaticamente
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run board-agents.yml \
+            --repo ${{ github.repository }} \
+            -f stage=dev-test \
+            -f issue_number=${{ needs.validate.outputs.issue }} || true
 
   # ==========================================
   # 3. DEV-TEST
@@ -248,6 +266,15 @@ jobs:
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
           gh issue comment "$ISSUE_NUM" --body "Testes gerados. Avancando para Testing." || true
           python3 /tmp/move-card.py || true
+          
+      - name: 🚀 Disparar Agent Testing automaticamente
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run board-agents.yml \
+            --repo ${{ github.repository }} \
+            -f stage=testing \
+            -f issue_number=${{ needs.validate.outputs.issue }} || true
 
   # ==========================================
   # 4. TESTING (Feedback Loop)
@@ -315,6 +342,16 @@ jobs:
           printf "%b" "$BODY" > /tmp/comment_pass.md
           gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_pass.md || true
           python3 /tmp/move-card.py || true
+          
+      - name: 🚀 Disparar Agent PR automaticamente
+        if: steps.run_ci.outputs.status == 'pass'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run board-agents.yml \
+            --repo ${{ github.repository }} \
+            -f stage=pr \
+            -f issue_number=${{ needs.validate.outputs.issue }} || true
 
       - name: ❌ CI Falhou → Evidência + Retorno para Dev
         if: steps.run_ci.outputs.status == 'fail'
