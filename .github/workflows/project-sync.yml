@@ -1,0 +1,31 @@
+name: Project Board Sync
+
+# Polls GitHub Projects v2 every 5 minutes.
+# When a card is moved to an actionable column (refinement, dev, dev-test,
+# testing, pr) and the issue has no current stage label, adds the matching
+# label → triggers board-agents.yml (issues: labeled).
+#
+# REQUIREMENT: Set repo variable PROJECT_NUMBER to your Projects v2 number.
+# NOTE: If your project is private or org-level, create a classic PAT with
+#       'project' scope and override the GH_TOKEN secret with it.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync Project Columns to Issue Labels
+        run: python3 .github/scripts/sync-project.py

@@ -120,10 +120,16 @@ jobs:
       - name: ✅ Avançar para Dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          OWNER: ${{ github.repository_owner }}
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          TARGET_COLUMN: Dev
         run: |
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "dev" || true
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "✅ **Refinement Complete.** Manual: Run workflow again with stage=dev" || true
-          echo "Next: Execute workflow_dispatch with stage=dev and issue=${{ needs.validate.outputs.issue }}"
+          ISSUE_NUM="${{ needs.validate.outputs.issue }}"
+          gh issue edit "$ISSUE_NUM" --remove-label "refinement" || true
+          gh issue edit "$ISSUE_NUM" --add-label "dev" || true
+          gh issue comment "$ISSUE_NUM" --body "Refinement concluido. Avancando para Dev." || true
+          python3 .github/scripts/move-card.py || true
 
   # ==========================================
   # 2. DEV
@@ -143,6 +149,7 @@ jobs:
         run: |
           git config user.name "AI Developer"
           git config user.email "ai-dev@iron-dome.local"
+          cp .github/scripts/move-card.py /tmp/move-card.py 2>/dev/null || true
           git fetch origin
           git checkout -b feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || git checkout feat/issue-${{ needs.validate.outputs.issue }}
 
@@ -182,9 +189,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          OWNER: ${{ github.repository_owner }}
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          TARGET_COLUMN: Dev-Test
         run: |
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "dev-test" || true
-          echo "Next: Execute workflow_dispatch with stage=dev-test and issue=${{ needs.validate.outputs.issue }}"
+          ISSUE_NUM="${{ needs.validate.outputs.issue }}"
+          gh issue edit "$ISSUE_NUM" --remove-label "dev" || true
+          gh issue edit "$ISSUE_NUM" --add-label "dev-test" || true
+          gh issue comment "$ISSUE_NUM" --body "Desenvolvimento concluido. Avancando para Dev-Test." || true
+          python3 /tmp/move-card.py || true
 
   # ==========================================
   # 3. DEV-TEST
@@ -195,6 +208,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: cp .github/scripts/move-card.py /tmp/move-card.py 2>/dev/null || true
       - run: git fetch origin && git checkout feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || true
       - uses: actions/setup-node@v4
         with:
@@ -236,10 +250,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          OWNER: ${{ github.repository_owner }}
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          TARGET_COLUMN: Testing
         run: |
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "testing" || true
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "🧪 **Tests Generated.** Manual: Run workflow with stage=testing" || true
-          echo "Next: Execute workflow_dispatch with stage=testing and issue=${{ needs.validate.outputs.issue }}"
+          ISSUE_NUM="${{ needs.validate.outputs.issue }}"
+          gh issue edit "$ISSUE_NUM" --remove-label "dev-test" || true
+          gh issue edit "$ISSUE_NUM" --add-label "testing" || true
+          gh issue comment "$ISSUE_NUM" --body "Testes gerados. Avancando para Testing." || true
+          python3 /tmp/move-card.py || true
 
   # ==========================================
   # 4. TESTING (Feedback Loop)
@@ -250,6 +269,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: cp .github/scripts/move-card.py /tmp/move-card.py 2>/dev/null || true
       - run: git fetch origin && git checkout feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || true
       - uses: actions/setup-node@v4
         with:
@@ -295,13 +315,19 @@ jobs:
         if: steps.run_ci.outputs.status == 'pass'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          OWNER: ${{ github.repository_owner }}
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          TARGET_COLUMN: PR
         run: |
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
           BRANCH="feat/issue-${ISSUE_NUM}"
-          BODY="## CI Passou - Pronto para PR\n\nBranch: \`${BRANCH}\`\n\nGates: Security Audit, Prettier, ESLint, Build, Unit Tests, Integration Tests - todos passaram.\n\nExecute o workflow com stage=pr para criar o Pull Request."
+          BODY="## CI Passou - Pronto para PR\n\nBranch: \`${BRANCH}\`\n\nTodos os gates passaram (7/7). Avancando para criacao do PR."
           printf "%b" "$BODY" > /tmp/comment_pass.md
           gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_pass.md || true
+          gh issue edit "$ISSUE_NUM" --remove-label "testing" || true
           gh issue edit "$ISSUE_NUM" --add-label "pr" || true
+          python3 /tmp/move-card.py || true
 
       - name: ❌ CI Falhou → Evidência + Retorno para Dev
         if: steps.run_ci.outputs.status == 'fail'
@@ -336,8 +362,10 @@ jobs:
           BODY="## CI Falhou - Gate: ${FAILED_GATE}\n\nBranch: \`${BRANCH}\`\n\nArquivo: \`${ERROR_FILE}\` linha ${ERROR_LINE}\n\nDiagnostico: ${DIAG}\n\nRetornando para Dev Agent. Execute o workflow com stage=dev e issue=${ISSUE_NUM}.\n\nLog (primeiras 60 linhas):\n\`\`\`\n${CI_LOG}\n\`\`\`"
           printf "%b" "$BODY" > /tmp/comment_fail.md
           gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_fail.md || true
+          gh issue edit "$ISSUE_NUM" --remove-label "testing" || true
           gh issue edit "$ISSUE_NUM" --add-label "dev" || true
-          echo "❌ CI falhou no gate: $FAILED_GATE — retornando para dev"
+          TARGET_COLUMN=Dev ISSUE="$ISSUE_NUM" OWNER="${{ github.repository_owner }}" PROJECT_NUMBER="${{ vars.PROJECT_NUMBER }}" python3 /tmp/move-card.py || true
+          echo "CI falhou no gate: $FAILED_GATE - retornando para dev"
           exit 1
 
   # ==========================================
@@ -564,10 +592,11 @@ jobs:
 
           PYEOF
 
-      - name: Comentar na Issue
+      - name: Comentar na Issue e Remover Label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ISSUE="${{ needs.validate.outputs.issue }}"
           PR_URL="${{ steps.create_pr.outputs.pr_url }}"
-          gh issue comment "$ISSUE" --body "Pipeline completo! PR criado: ${PR_URL}. Card movido para **Done**." || true
+          gh issue edit "$ISSUE" --remove-label "pr" || true
+          gh issue comment "$ISSUE" --body "Pipeline completo! PR criado: ${PR_URL}. Card movido para Done." || true
