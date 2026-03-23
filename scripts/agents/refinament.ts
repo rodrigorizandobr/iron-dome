@@ -9,25 +9,28 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-const issueNumber = process.env.ISSUE_NUMBER || '0';
+let issueNumber = process.env.ISSUE_NUMBER || '0';
 const ghToken = process.env.GH_TOKEN || '';
 const copilotToken = process.env.COPILOT_TOKEN || '';
-const agentInstructions = process.env.AGENT_INSTRUCTIONS || '';
+
+// Read from env vars (passed from workflow)
+let issueTitle = process.env.ISSUE_TITLE || '';
+let issueBody = process.env.ISSUE_BODY || '';
 
 /**
- * Fetch issue details from GitHub API
+ * Fetch issue details from GitHub API (fallback)
  */
 async function getIssueDetails(issueNum: string) {
   try {
     const { stdout } = await execAsync(
-      `gh issue view ${issueNum} --json title,body --jq '.title + "\\n---\\n" + .body'`,
+      `gh issue view ${issueNum} --json title,body --jq '.title + "\\n---\\n" + (.body // "sem descricao")'`,
       { env: { ...process.env, GH_TOKEN: ghToken } }
     );
-    const [title, ...bodyLines] = stdout.trim().split('\n---\n');
-    return { title, body: bodyLines.join('\n---\n') };
+    const parts = stdout.trim().split('\n---\n');
+    return { title: parts[0] || 'Unknown', body: parts.slice(1).join('\n---\n') || '' };
   } catch (e) {
-    console.error('❌ Failed to fetch issue:', e);
-    return { title: 'Unknown', body: '' };
+    console.error('⚠️ Fallback via API failed, using env vars');
+    return { title: issueTitle || 'Unknown', body: issueBody };
   }
 }
 
@@ -36,14 +39,20 @@ async function getIssueDetails(issueNum: string) {
  */
 async function postRefinementComment(issueNum: string, refinement: string) {
   try {
+    // Use file-based input to avoid shell escaping issues
+    const fs = require('fs');
+    const tmpFile = `/tmp/refinement_${issueNum}_${Date.now()}.md`;
+    fs.writeFileSync(tmpFile, refinement);
+
     const { stdout } = await execAsync(
-      `gh issue comment ${issueNum} --body "${refinement.replace(/"/g, '\\"')}"`,
+      `gh issue comment ${issueNum} --body-file "${tmpFile}"`,
       { env: { ...process.env, GH_TOKEN: ghToken }, maxBuffer: 10 * 1024 * 1024 }
     );
-    console.log('✅ Comment posted');
+    console.log('✅ Refinement comment posted');
+    fs.unlinkSync(tmpFile);
     return true;
   } catch (e) {
-    console.error('⚠️ Failed to post comment:', e);
+    console.error('⚠️ Failed to post refinement comment:', (e as Error).message);
     return false;
   }
 }
@@ -54,19 +63,22 @@ async function postRefinementComment(issueNum: string, refinement: string) {
 async function runRefinement() {
   console.log(`🔍 Refinement Agent Started for Issue #${issueNumber}`);
 
-  // 1. Fetch issue
-  const issue = await getIssueDetails(issueNumber);
-  console.log(`📋 Title: ${issue.title}`);
-  console.log(`📄 Body length: ${issue.body.length} chars`);
+  // Use env vars if available, fallback to API
+  let issue = { title: issueTitle || 'Unknown', body: issueBody };
+  if (!issueTitle) {
+    console.log('📡 Fetching issue from GitHub...');
+    issue = await getIssueDetails(issueNumber);
+  }
 
-  // 2. For now, generate a template-based refinement
-  // In production, you'd call Claude here with agentInstructions
+  console.log(`📋 Title: ${issue.title}`);
+  console.log(`📄 Body: ${issue.body.substring(0, 100)}...`);
+
+  // Generate refinement
   const refinement = generateRefinementComment(issue.title, issue.body);
 
-  console.log('\n📝 Generated Refinement:');
-  console.log(refinement);
+  console.log('\n📝 Refinement Generated');
 
-  // 3. Post comment
+  // Post comment
   await postRefinementComment(issueNumber, refinement);
 
   console.log('✅ Refinement Agent Completed');
@@ -76,36 +88,40 @@ async function runRefinement() {
  * Generate structured refinement comment
  */
 function generateRefinementComment(title: string, body: string): string {
-  // Extract basic info from issue
-  const hasAcceptanceCriteria = body.toLowerCase().includes('([x ]|[ ][x ])');
-  const hasTechnicalDetails = body.toLowerCase().includes('technical|arquitetura|module|módulo');
+  const hasAcceptanceCriteria = /\([x ]\)|[\-\*]\s*\[|\-\s*criterion|criteria de aceite/i.test(body);
+  const hasTechnicalDetails = /technical|arquitetura|module|módulo|src\/|service|database|dynamo|lambda|rest|api|endpoint/i.test(body);
 
-  const resumo = title.substring(0, 100);
-  const criiteriosPlaceholder = !hasAcceptanceCriteria
-    ? '- [ ] Definir escopo claro\n- [ ] Identificar dependências\n- [ ] Validar com PM'
-    : 'Já definidos na issue';
+  const resumo = title.substring(0, 150) || 'Issue sem título';
+  const criterios = !hasAcceptanceCriteria
+    ? '- [ ] Validar escopo com Product\n- [ ] Definir dependências externas\n- [ ] Identificar impacto em outros módulos'
+    : 'Critérios mencionados na descrição';
 
   const abordagem = !hasTechnicalDetails
-    ? '- Módulo: `src/modules/[x]` (a definir)\n- Arquivos: (a definir)\n- Padrões: BaseResourceService, JWT, i18n, AuditTrail'
-    : 'Já mencionada na issue';
+    ? '- **Módulo**: `src/modules/[x]` (a definir com PM)\n- **Arquivos**: Analisar durante fase dev\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS'
+    : 'Abordagem técnica sugerida na descrição';
 
   return `## 🔍 Refinement Complete
 
 **Resumo**: ${resumo}
 
 **Critérios de Aceite**:
-${criiteriosPlaceholder}
+${criterios}
 
 **Abordagem Técnica**:
 ${abordagem}
 
-**Perguntas em Aberto**:
-- Qual é o prazo esperado?
-- Há dependências com outras issues?
-- Necessário design review antes de iniciar?
+**Próximos Passos**:
+- ✅ Refinement concluído
+- 👉 Mover para Dev quando pronto
 
-> ✅ Pronto para dev. Arraste para coluna Dev quando pronto.`;
+**Perguntas em Aberto**:
+- Qual é o deadline?
+- Necessário review design antes de implementação?
+- Há dependências com outras tasks?`;
 }
 
 // Run
-runRefinement().catch(console.error);
+runRefinement().catch((e) => {
+  console.error('❌ Refinement Agent Error:', e);
+  process.exit(1);
+});
