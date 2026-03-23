@@ -95,7 +95,7 @@ jobs:
 
       - name: Avancar para Dev
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
           OWNER: ${{ github.repository_owner }}
           ISSUE: ${{ needs.validate.outputs.issue }}
@@ -161,7 +161,7 @@ jobs:
 
       - name: Avancar para Dev-Test
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
           OWNER: ${{ github.repository_owner }}
           ISSUE: ${{ needs.validate.outputs.issue }}
@@ -220,7 +220,7 @@ jobs:
 
       - name: Avancar para Testing
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
           OWNER: ${{ github.repository_owner }}
           ISSUE: ${{ needs.validate.outputs.issue }}
@@ -284,7 +284,7 @@ jobs:
       - name: CI Passou - Avanca para PR
         if: steps.run_ci.outputs.status == 'pass'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
           OWNER: ${{ github.repository_owner }}
           ISSUE: ${{ needs.validate.outputs.issue }}
@@ -300,7 +300,7 @@ jobs:
       - name: ❌ CI Falhou → Evidência + Retorno para Dev
         if: steps.run_ci.outputs.status == 'fail'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         run: |
           FAILED_GATE="${{ steps.run_ci.outputs.failed_gate }}"
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
