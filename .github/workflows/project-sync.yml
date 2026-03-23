@@ -1,20 +1,24 @@
 name: Project Board Sync
 
 # Polls GitHub Projects v2 every 5 minutes.
-# When a card is moved to an actionable column (refinement, dev, dev-test,
-# testing, pr) and the issue has no current stage label, adds the matching
-# label → triggers board-agents.yml (issues: labeled).
+# When a card is in an actionable column (refinement, dev, dev-test, testing, pr)
+# and no board-agents pipeline is currently running, dispatches workflow_dispatch
+# on board-agents.yml with the correct stage + issue_number.
 #
-# REQUIREMENT: Set repo variable PROJECT_NUMBER to your Projects v2 number.
-# NOTE: If your project is private or org-level, create a classic PAT with
-#       'project' scope and override the GH_TOKEN secret with it.
+# State is tracked purely by project column — no labels involved.
+# Each agent, when done, moves the card to the next column via move-card.py.
+#
+# REQUIREMENTS:
+#   - Set repo variable PROJECT_NUMBER to your Projects v2 number.
+#   - If project is private or org-level, create a classic PAT with 'project'
+#     scope and store it as GH_TOKEN secret (or a separate PROJECT_TOKEN secret).
 on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
-  issues: write
+  actions: write
   contents: read
 
 jobs:
@@ -24,8 +28,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
       OWNER: ${{ github.repository_owner }}
+      REPO: ${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync Project Columns to Issue Labels
+      - name: Sync Project Columns → Dispatch Agents
         run: python3 .github/scripts/sync-project.py
+

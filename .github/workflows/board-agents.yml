@@ -1,11 +1,11 @@
 name: Autonomous Board Agents
 
 on:
-  # 🎯 Trigger 1: Manual dispatch (explícito)
+  # Trigger unico: Manual dispatch ou via project-sync.yml (workflow_dispatch)
   workflow_dispatch:
     inputs:
       stage:
-        description: '📋 Select stage to run'
+        description: 'Select stage to run'
         required: true
         default: 'refinament'
         type: choice
@@ -16,13 +16,9 @@ on:
           - testing
           - pr
       issue_number:
-        description: '🔢 Issue number to process'
+        description: 'Issue number to process'
         required: true
         type: number
-
-  # 🎯 Trigger 2: Issue com label adicionada (equivalente a mover coluna)
-  issues:
-    types: [labeled]
 
 permissions:
   contents: write
@@ -49,34 +45,14 @@ jobs:
           if [ "$TRIGGER" = "workflow_dispatch" ]; then
             STAGE="${{ github.event.inputs.stage }}"
             ISSUE="${{ github.event.inputs.issue_number }}"
-
-          elif [ "$TRIGGER" = "issues" ]; then
-            LABEL="${{ github.event.label.name }}"
-            echo "Label adicionada: '$LABEL'"
-
-            # Mapeia label para stage do agente
-            case "$LABEL" in
-              "refinement") STAGE="refinament" ;;
-              "dev")        STAGE="dev" ;;
-              "dev-test")   STAGE="dev-test" ;;
-              "testing")    STAGE="testing" ;;
-              "pr")         STAGE="pr" ;;
-              *) echo "Label '$LABEL' sem agente — ignorando" ;;
-            esac
-
-            if [ -n "$STAGE" ]; then
-              ISSUE="${{ github.event.issue.number }}"
-              echo "Issue: #$ISSUE"
-            fi
           fi
 
           echo "stage=$STAGE" >> $GITHUB_OUTPUT
           echo "issue=$ISSUE" >> $GITHUB_OUTPUT
-          echo "🎯 Trigger: $TRIGGER | Stage: $STAGE | Issue: #$ISSUE"
+          echo "Trigger: $TRIGGER | Stage: $STAGE | Issue: #$ISSUE"
 
-          # Só falha se for dispatch manual sem valores
-          if [ "$TRIGGER" = "workflow_dispatch" ] && { [ -z "$STAGE" ] || [ -z "$ISSUE" ]; }; then
-            echo "❌ ERROR: workflow_dispatch requer stage e issue_number!"
+          if [ -z "$STAGE" ] || [ -z "$ISSUE" ]; then
+            echo "ERROR: stage e issue_number sao obrigatorios!"
             exit 1
           fi
 
@@ -117,7 +93,7 @@ jobs:
           AGENT_INSTRUCTIONS: ${{ steps.agent_instructions.outputs.instructions }}
         run: npx ts-node scripts/agents/refinament.ts 2>/dev/null || echo "Agent script not yet implemented"
 
-      - name: ✅ Avançar para Dev
+      - name: Avancar para Dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
@@ -126,8 +102,6 @@ jobs:
           TARGET_COLUMN: Dev
         run: |
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
-          gh issue edit "$ISSUE_NUM" --remove-label "refinement" || true
-          gh issue edit "$ISSUE_NUM" --add-label "dev" || true
           gh issue comment "$ISSUE_NUM" --body "Refinement concluido. Avancando para Dev." || true
           python3 .github/scripts/move-card.py || true
 
@@ -185,7 +159,7 @@ jobs:
           git push origin feat/issue-${{ needs.validate.outputs.issue }} --force 2>/dev/null || true
           gh issue comment ${{ needs.validate.outputs.issue }} --body "💻 **Development Complete.** Manual: Run workflow with stage=dev-test" || true
 
-      - name: ✅ Avançar para Dev-Test
+      - name: Avancar para Dev-Test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
@@ -194,8 +168,6 @@ jobs:
           TARGET_COLUMN: Dev-Test
         run: |
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
-          gh issue edit "$ISSUE_NUM" --remove-label "dev" || true
-          gh issue edit "$ISSUE_NUM" --add-label "dev-test" || true
           gh issue comment "$ISSUE_NUM" --body "Desenvolvimento concluido. Avancando para Dev-Test." || true
           python3 /tmp/move-card.py || true
 
@@ -246,7 +218,7 @@ jobs:
           git commit -m "test: testes unitários gerados pela IA" || echo "Sem mudanças"
           git push origin feat/issue-${{ needs.validate.outputs.issue }} --force 2>/dev/null || true
 
-      - name: ✅ Avançar para Testing
+      - name: Avancar para Testing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
@@ -255,8 +227,6 @@ jobs:
           TARGET_COLUMN: Testing
         run: |
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
-          gh issue edit "$ISSUE_NUM" --remove-label "dev-test" || true
-          gh issue edit "$ISSUE_NUM" --add-label "testing" || true
           gh issue comment "$ISSUE_NUM" --body "Testes gerados. Avancando para Testing." || true
           python3 /tmp/move-card.py || true
 
@@ -311,7 +281,7 @@ jobs:
             echo "status=fail" >> $GITHUB_OUTPUT
           fi
 
-      - name: ✅ CI Passou → Avança para PR
+      - name: CI Passou - Avanca para PR
         if: steps.run_ci.outputs.status == 'pass'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -325,8 +295,6 @@ jobs:
           BODY="## CI Passou - Pronto para PR\n\nBranch: \`${BRANCH}\`\n\nTodos os gates passaram (7/7). Avancando para criacao do PR."
           printf "%b" "$BODY" > /tmp/comment_pass.md
           gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_pass.md || true
-          gh issue edit "$ISSUE_NUM" --remove-label "testing" || true
-          gh issue edit "$ISSUE_NUM" --add-label "pr" || true
           python3 /tmp/move-card.py || true
 
       - name: ❌ CI Falhou → Evidência + Retorno para Dev
@@ -362,8 +330,6 @@ jobs:
           BODY="## CI Falhou - Gate: ${FAILED_GATE}\n\nBranch: \`${BRANCH}\`\n\nArquivo: \`${ERROR_FILE}\` linha ${ERROR_LINE}\n\nDiagnostico: ${DIAG}\n\nRetornando para Dev Agent. Execute o workflow com stage=dev e issue=${ISSUE_NUM}.\n\nLog (primeiras 60 linhas):\n\`\`\`\n${CI_LOG}\n\`\`\`"
           printf "%b" "$BODY" > /tmp/comment_fail.md
           gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_fail.md || true
-          gh issue edit "$ISSUE_NUM" --remove-label "testing" || true
-          gh issue edit "$ISSUE_NUM" --add-label "dev" || true
           TARGET_COLUMN=Dev ISSUE="$ISSUE_NUM" OWNER="${{ github.repository_owner }}" PROJECT_NUMBER="${{ vars.PROJECT_NUMBER }}" python3 /tmp/move-card.py || true
           echo "CI falhou no gate: $FAILED_GATE - retornando para dev"
           exit 1
@@ -592,11 +558,10 @@ jobs:
 
           PYEOF
 
-      - name: Comentar na Issue e Remover Label
+      - name: Comentar na Issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ISSUE="${{ needs.validate.outputs.issue }}"
           PR_URL="${{ steps.create_pr.outputs.pr_url }}"
-          gh issue edit "$ISSUE" --remove-label "pr" || true
           gh issue comment "$ISSUE" --body "Pipeline completo! PR criado: ${PR_URL}. Card movido para Done." || true
