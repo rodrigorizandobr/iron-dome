@@ -88,21 +88,68 @@ async function runRefinement() {
  * Generate structured refinement comment
  */
 function generateRefinementComment(title: string, body: string): string {
+  // Parse issue for technical details
   const hasAcceptanceCriteria = /\([x ]\)|[\-\*]\s*\[|\-\s*criterion|criteria de aceite/i.test(body);
-  const hasTechnicalDetails = /technical|arquitetura|module|módulo|src\/|service|database|dynamo|lambda|rest|api|endpoint/i.test(body);
+  
+  // Extract technical keywords
+  const technicalKeywords: string[] = [];
+  if (/sqs|queue/i.test(body)) technicalKeywords.push('SQS');
+  if (/dynamodb|dynamo|database|db/i.test(body)) technicalKeywords.push('DynamoDB');
+  if (/lambda|serverless/i.test(body)) technicalKeywords.push('Lambda');
+  if (/sns|topic/i.test(body)) technicalKeywords.push('SNS');
+  if (/rest|api|endpoint/i.test(body)) technicalKeywords.push('REST API');
+  if (/crud|create|read|update|delete|list/i.test(body)) technicalKeywords.push('CRUD Operations');
+  if (/micro.*service|service|microservice/i.test(body)) technicalKeywords.push('Microservice');
+  if (/audit|log/i.test(body)) technicalKeywords.push('Audit Trail');
+  if (/compliance|regulatory|regulatorio|bacen/i.test(body)) technicalKeywords.push('Compliance');
+  if (/event|evento/i.test(body)) technicalKeywords.push('Event-Driven');
+  if (/stream|processing/i.test(body)) technicalKeywords.push('Stream Processing');
+  if (/multi.tenant|tenant|multi-tenant/i.test(body)) technicalKeywords.push('Multi-Tenancy');
+
+  // Extract main responsibilities from body
+  const responsibilities: string[] = [];
+  const lines = body.split('\n').filter(l => l.trim().length > 20);
+  lines.forEach(line => {
+    if (/^[•\-\*\s]+/.test(line)) {
+      const cleaned = line.replace(/^[•\-\*\s]+/, '').trim();
+      if (cleaned.length > 10 && cleaned.length < 150) {
+        responsibilities.push(cleaned);
+      }
+    }
+  });
+
+  // If no bullets found, extract from first sentences
+  if (responsibilities.length === 0) {
+    const sentences = body.match(/[^.!?]+[.!?]+/g) || [];
+    sentences.slice(0, 3).forEach(s => {
+      const cleaned = s.trim();
+      if (cleaned.length < 200) {
+        responsibilities.push(cleaned);
+      }
+    });
+  }
 
   const resumo = title.substring(0, 150) || 'Issue sem título';
+  
   const criterios = !hasAcceptanceCriteria
-    ? '- [ ] Validar escopo com Product\n- [ ] Definir dependências externas\n- [ ] Identificar impacto em outros módulos'
+    ? responsibilities.length > 0
+      ? responsibilities.map((r, i) => `- [ ] ${r}`).join('\n')
+      : '- [ ] Validar escopo com Product\n- [ ] Definir dependências externas\n- [ ] Identificar impacto em outros módulos'
     : 'Critérios mencionados na descrição';
 
-  const abordagem = !hasTechnicalDetails
-    ? '- **Módulo**: `src/modules/[x]` (a definir com PM)\n- **Arquivos**: Analisar durante fase dev\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS'
-    : 'Abordagem técnica sugerida na descrição';
+  const techStack = technicalKeywords.length > 0
+    ? `**Stack**: ${technicalKeywords.join(' • ')}`
+    : '**Stack**: A definir';
+
+  const abordagem = technicalKeywords.length > 0
+    ? `- **Tecnologias**: ${technicalKeywords.join(', ')}\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS\n- **Módulo**: \`src/modules/[x]\` (a confirmar com PM)`
+    : '- **Módulo**: \`src/modules/[x]\` (a confirmar)\n- **Arquivos**: Analisar durante fase dev\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS';
 
   return `## 🔍 Refinement Complete
 
 **Resumo**: ${resumo}
+
+${techStack}
 
 **Critérios de Aceite**:
 ${criterios}
@@ -110,14 +157,15 @@ ${criterios}
 **Abordagem Técnica**:
 ${abordagem}
 
-**Próximos Passos**:
-- ✅ Refinement concluído
-- 👉 Mover para Dev quando pronto
-
 **Perguntas em Aberto**:
 - Qual é o deadline?
-- Necessário review design antes de implementação?
-- Há dependências com outras tasks?`;
+- Há dependências com outras tasks/issues?
+- Necessário design review antes de iniciar?
+- Qual é o SLA/RTO para operações?
+
+**Próximos Passos**:
+- ✅ Refinement completo
+- 👉 Mover para Dev quando pronto para desenvolvimento`;
 }
 
 // Run
