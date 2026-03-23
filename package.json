@@ -96,7 +96,7 @@
     "**/*.{ts,js,cjs,mjs,json,yml,md}": [
       "prettier --write"
     ],
-    "**/*.ts": [
+    "{src,test}/**/*.ts": [
       "eslint --fix"
     ]
   },

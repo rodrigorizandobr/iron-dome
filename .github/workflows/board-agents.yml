@@ -92,12 +92,12 @@ jobs:
         run: |
           ISSUE_TITLE=$(gh issue view ${{ needs.validate.outputs.issue }} --json title -q '.title')
           ISSUE_BODY=$(gh issue view ${{ needs.validate.outputs.issue }} --json body -q '.body // "sem descricao"')
-          
+
           # Use multiline output para evitar problemas com caracteres especiais
           echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
           echo "$ISSUE_TITLE" >> $GITHUB_OUTPUT
           echo "TITLE_EOF" >> $GITHUB_OUTPUT
-          
+
           echo "body<<BODY_EOF" >> $GITHUB_OUTPUT
           echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
           echo "BODY_EOF" >> $GITHUB_OUTPUT
@@ -123,7 +123,7 @@ jobs:
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
           gh issue comment "$ISSUE_NUM" --body "Refinement concluido. Avancando para Dev." || true
           python3 .github/scripts/move-card.py || true
-          
+
       - name: 🚀 Disparar Agent Dev automaticamente
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -134,7 +134,12 @@ jobs:
             -f issue_number=${{ needs.validate.outputs.issue }} || true
 
   # ==========================================
-  # 2. DEV
+  # 2. DEV — GitHub Copilot Coding Agent
+  # ==========================================
+  # This job generates a rich implementation spec and assigns the issue
+  # to the GitHub Copilot coding agent, which will create a branch + PR.
+  # The card advances to Dev-Test automatically via copilot-pr.yml when
+  # the Copilot PR is opened.
   # ==========================================
   agent-dev:
     needs: [validate]
@@ -147,15 +152,7 @@ jobs:
           node-version: '22'
       - run: npm ci
 
-      - name: 🔧 Configurar Git e Branch
-        run: |
-          git config user.name "AI Developer"
-          git config user.email "ai-dev@iron-dome.local"
-          cp .github/scripts/move-card.py /tmp/move-card.py 2>/dev/null || true
-          git fetch origin
-          git checkout -b feat/issue-${{ needs.validate.outputs.issue }} 2>/dev/null || git checkout feat/issue-${{ needs.validate.outputs.issue }}
-
-      - name: � Carregar Agent Instructions
+      - name: 📄 Carregar Agent Instructions
         id: agent_instructions
         run: |
           AGENT_FILE=".github/agents/dev.agent.md"
@@ -170,43 +167,41 @@ jobs:
             echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
           fi
 
-      - name: 💻 Desenvolver Código (IA)
+      - name: 🔍 Carregar Detalhes da Issue
+        id: issue_details
         env:
-          COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_TITLE=$(gh issue view ${{ needs.validate.outputs.issue }} --json title -q '.title')
+          ISSUE_BODY=$(gh issue view ${{ needs.validate.outputs.issue }} --json body -q '.body // "sem descricao"')
+
+          echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
+          echo "$ISSUE_TITLE" >> $GITHUB_OUTPUT
+          echo "TITLE_EOF" >> $GITHUB_OUTPUT
+
+          echo "body<<BODY_EOF" >> $GITHUB_OUTPUT
+          echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
+          echo "BODY_EOF" >> $GITHUB_OUTPUT
+
+      - name: 🤖 Gerar Spec e Acionar GitHub Copilot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
+          ISSUE_TITLE: ${{ steps.issue_details.outputs.title }}
+          ISSUE_BODY: ${{ steps.issue_details.outputs.body }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AGENT_INSTRUCTIONS: ${{ steps.agent_instructions.outputs.instructions }}
-        run: npx ts-node scripts/agents/dev.ts 2>/dev/null || echo "Agent script not yet implemented"
+        run: npx ts-node scripts/agents/dev.ts
 
-      - name: 📝 Commitar e Avisar
+      - name: 🏷️ Marcar Issue como Copilot Working
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git add .
-          git commit -m "feat: código gerado pela IA para issue #${{ needs.validate.outputs.issue }}" || echo "Sem mudanças"
-          git push origin feat/issue-${{ needs.validate.outputs.issue }} --force 2>/dev/null || true
-          gh issue comment ${{ needs.validate.outputs.issue }} --body "💻 **Development Complete.** Manual: Run workflow with stage=dev-test" || true
-
-      - name: Avancar para Dev-Test
-        env:
-          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
-          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          OWNER: ${{ github.repository_owner }}
-          ISSUE: ${{ needs.validate.outputs.issue }}
-          TARGET_COLUMN: Dev-Test
-        run: |
-          ISSUE_NUM="${{ needs.validate.outputs.issue }}"
-          gh issue comment "$ISSUE_NUM" --body "Desenvolvimento concluido. Avancando para Dev-Test." || true
-          python3 /tmp/move-card.py || true
-          
-      - name: 🚀 Disparar Agent Dev-Test automaticamente
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run board-agents.yml \
-            --repo ${{ github.repository }} \
-            -f stage=dev-test \
-            -f issue_number=${{ needs.validate.outputs.issue }} || true
+          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "copilot-working" 2>/dev/null || \
+            (gh label create "copilot-working" --color "0075ca" --description "GitHub Copilot coding agent is working" 2>/dev/null || true) && \
+            gh issue edit ${{ needs.validate.outputs.issue }} --add-label "copilot-working" || true
+          gh issue comment ${{ needs.validate.outputs.issue }} \
+            --body "🤖 **GitHub Copilot coding agent assigned.** A branch and PR will be created automatically. The card will advance to Dev-Test when the PR is opened." || true
 
   # ==========================================
   # 3. DEV-TEST
@@ -266,7 +261,7 @@ jobs:
           ISSUE_NUM="${{ needs.validate.outputs.issue }}"
           gh issue comment "$ISSUE_NUM" --body "Testes gerados. Avancando para Testing." || true
           python3 /tmp/move-card.py || true
-          
+
       - name: 🚀 Disparar Agent Testing automaticamente
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -342,7 +337,7 @@ jobs:
           printf "%b" "$BODY" > /tmp/comment_pass.md
           gh issue comment "$ISSUE_NUM" --body-file /tmp/comment_pass.md || true
           python3 /tmp/move-card.py || true
-          
+
       - name: 🚀 Disparar Agent PR automaticamente
         if: steps.run_ci.outputs.status == 'pass'
         env:

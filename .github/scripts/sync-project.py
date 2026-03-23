@@ -133,8 +133,17 @@ for item in project["items"]["nodes"]:
             status_column = (fv.get("name") or "").lower()
             break
 
-    if status_column in COLUMN_TO_STAGE:
-        pending.append((issue_number, status_column))
+    if status_column not in COLUMN_TO_STAGE:
+        continue
+
+    # Skip issues with 'copilot-working' label (waiting for Copilot to create PR)
+    labels_out, _ = gh("issue", "view", str(issue_number), "--json", "labels",
+                       "--jq", "[.labels[].name] | join(\",\")")
+    if "copilot-working" in labels_out:
+        print(f"  Issue #{issue_number}: skipping — copilot-working label (Copilot PR pending)")
+        continue
+
+    pending.append((issue_number, status_column))
 
 if not pending:
     print("No cards in actionable columns. Nothing to do.")

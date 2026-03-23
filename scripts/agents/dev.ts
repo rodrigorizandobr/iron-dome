@@ -1,106 +1,138 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic from '@anthropic-ai/sdk';
+import { execSync } from 'child_process';
+import * as fs from 'fs';
 
-/**
- * Task object from Claude response.
- */
-interface Task {
-  title: string;
-  description: string;
-  priority: "high" | "medium" | "low";
+interface AgentContext {
+  issueNumber: string;
+  issueTitle: string;
+  issueBody: string;
+  agentInstructions: string;
 }
 
 /**
- * Structured response from Claude analysis.
+ * Builds the system prompt for the implementation spec generator.
+ * @param instructions - Additional agent instructions from .github/agents/dev.agent.md
  */
-interface AnalysisResponse {
-  tasks: Task[];
-  architecture: string;
-  implementation_notes: string;
-}
-
-/**
- * Dev Agent analyzes issues and plans implementation.
- * @param issue - The business requirement to analyze
- */
-async function devAgent(issue: string): Promise<void> {
-  console.log("🚀 Dev Agent started\n");
-
-  const systemPrompt = `You are a Senior Architect for a 100% Serverless Fintech/SaaS API.
-You MUST enforce:
-- ONLY DynamoDB (never relational DBs)
-- BaseResourceService for CRUD
-- PK: TENANT#[tenantId]#[ENTITY], SK: [ENTITY]#[id]
-- AWS naming: [ENV]-[DOMAIN]-[SUBDOMAIN]-[RESOURCE_TYPE]-[NAME]
+function buildSystemPrompt(instructions: string): string {
+  return `You are a Senior Architect for a 100% Serverless Fintech/SaaS NestJS API.
+Generate a DETAILED implementation spec for GitHub Copilot coding agent.
+${instructions ? `\n${instructions}\n` : ''}
+Iron Dome mandatory conventions:
+- ONLY DynamoDB via BaseResourceService (PK: TENANT#[tenantId]#[ENTITY], SK: [ENTITY]#[id])
+- AWS naming via BaseProvider.getResourceName(type, name)
 - Every provider extends BaseProvider with ConfigService
-- JWT auth (JwtAuthGuard global, use @Public() to bypass)
-- Multi-tenancy: x-tenant-id header + ITenantRequest
-- Pagination: cursor-based PaginatedResult<T>
-- SNS/SQS events: fire-and-forget
-- AuditTrail.record() on all CUD
-- Soft-delete only
-- ErrorCode enum + ERROR_REGISTRY
-- i18n: translate() before returning user messages
-- ObfuscationService for sensitive data logging
-- Max 200 lines/file, max 15 cognitive complexity
-- JSDoc on all public methods
-- Terraform IaC for all AWS resources
+- JWT: JwtAuthGuard global, @Public() to bypass, @ApiBearerAuth() on controllers
+- Multi-tenancy: x-tenant-id header + ITenantRequest (NEVER (req as any).tenantId)
+- Pagination: cursor-based PaginatedResult<T> (NEVER T[])
+- SNS/SQS events fire-and-forget via [Entity]EventPublisher
+- AuditTrail.record(tenantId, action, resourceType, id) on every CUD
+- ErrorCode enum + ERROR_REGISTRY in src/common/core/error-codes.ts
+- i18n: I18nService.translate() for all user-facing messages
+- ObfuscationService.obfuscate() before any logging
+- Soft-delete only (deleted: true + updatedAt)
+- Max 200 lines/file, JSDoc on all public methods
+- Add Terraform resources in infra/terraform/main.tf if needed
 
-Output: JSON with { tasks: [{ title, description, priority }], architecture: string, implementation_notes: string }`;
+Output a MARKDOWN spec with:
+1. Entity design (fields, types)
+2. DynamoDB PK/SK design
+3. Files to create (with path and purpose)
+4. Key code patterns (DTOs, service methods, controller routes)
+5. Terraform additions needed (SQS/SNS if applicable)`;
+}
 
+/**
+ * Generates a detailed implementation spec using the Anthropic API.
+ * @param ctx - Issue context with title, body, and agent instructions
+ * @returns Markdown spec for GitHub Copilot to implement
+ */
+async function generateSpec(ctx: AgentContext): Promise<string> {
   const client = new Anthropic();
   const response = await client.messages.create({
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 2048,
-    system: systemPrompt,
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 4096,
+    system: buildSystemPrompt(ctx.agentInstructions),
     messages: [
       {
-        role: "user",
-        content: `Analyze and plan implementation:\n${issue}\n\nOutput ONLY valid JSON (no markdown, no backticks).`,
+        role: 'user',
+        content: `Issue #${ctx.issueNumber}: ${ctx.issueTitle}\n\n${ctx.issueBody}`,
       },
     ],
   });
 
-  const firstContent = response.content[0];
-  const content =
-    firstContent && "type" in firstContent && firstContent.type === "text"
-      ? "text" in firstContent
-        ? firstContent.text
-        : ""
-      : "";
+  const first = response.content[0];
+  return first && 'text' in first ? first.text : 'Spec generation failed.';
+}
 
+/**
+ * Posts a comment on the GitHub issue with the implementation spec.
+ * @param issueNumber - GitHub issue number
+ * @param body - Markdown comment body
+ */
+function postComment(issueNumber: string, body: string): void {
+  const tmpFile = `/tmp/dev_spec_${issueNumber}.md`;
+  fs.writeFileSync(tmpFile, body);
+  execSync(`gh issue comment ${issueNumber} --body-file "${tmpFile}"`, {
+    stdio: 'inherit',
+  });
+  fs.unlinkSync(tmpFile);
+}
+
+/**
+ * Assigns the issue to the GitHub Copilot coding agent.
+ * Requires GitHub Copilot with coding agent enabled in org settings.
+ * @param issueNumber - GitHub issue number
+ */
+function assignToCopilot(issueNumber: string): void {
   try {
-    const json: unknown = JSON.parse(content);
-    if (!isAnalysisResponse(json)) {
-      console.log("Invalid response format");
-      return;
-    }
-
-    console.log("📋 TASKS:");
-    json.tasks.forEach((t: Task, i: number) =>
-      console.log(`  ${i + 1}. [${t.priority}] ${t.title}\n     ${t.description}`)
+    execSync(`gh issue edit ${issueNumber} --add-assignee "Copilot"`, {
+      stdio: 'inherit',
+    });
+    console.log(`✅ Issue #${issueNumber} assigned to GitHub Copilot coding agent`);
+  } catch {
+    console.warn(
+      '⚠️  Could not assign to Copilot. Enable the coding agent in GitHub org settings.',
     );
-    console.log("\n📐 ARCHITECTURE:", json.architecture);
-    console.log("\n📝 NOTES:", json.implementation_notes);
-  } catch (error) {
-    console.log("Response:", content);
   }
 }
 
 /**
- * Type guard for AnalysisResponse.
- * @param val - Value to check
- * @returns True if value is AnalysisResponse
+ * Main entry point for the Dev Agent.
+ * Reads issue context from env vars, generates spec, and assigns to Copilot.
  */
-function isAnalysisResponse(val: unknown): val is AnalysisResponse {
-  if (typeof val !== "object" || val === null) return false;
-  const obj = val as Record<string, unknown>;
-  return (
-    Array.isArray(obj.tasks) &&
-    typeof obj.architecture === "string" &&
-    typeof obj.implementation_notes === "string"
-  );
+async function devAgent(): Promise<void> {
+  const ctx: AgentContext = {
+    issueNumber: process.env.ISSUE_NUMBER ?? '',
+    issueTitle: process.env.ISSUE_TITLE ?? 'No title',
+    issueBody: process.env.ISSUE_BODY ?? 'No description provided.',
+    agentInstructions: process.env.AGENT_INSTRUCTIONS ?? '',
+  };
+
+  if (!ctx.issueNumber) {
+    console.error(
+      '❌ ISSUE_NUMBER env var is required. Example: ISSUE_NUMBER=10 npx ts-node dev.ts',
+    );
+    process.exit(1);
+  }
+
+  console.log(`🚀 Dev Agent — Issue #${ctx.issueNumber}: ${ctx.issueTitle}`);
+
+  const spec = await generateSpec(ctx);
+  const comment = [
+    '## 🤖 Dev Agent — Implementation Spec',
+    '',
+    spec,
+    '',
+    '---',
+    '*Spec generated by Dev Agent. GitHub Copilot coding agent will implement this.*',
+    '*See [Iron Dome conventions](.github/agents/dev.agent.md) for architecture rules.*',
+  ].join('\n');
+
+  postComment(ctx.issueNumber, comment);
+  console.log(`✅ Implementation spec posted on issue #${ctx.issueNumber}`);
+
+  assignToCopilot(ctx.issueNumber);
 }
 
-const issue = process.argv[2] ?? "Create a new Orders module with full CRUD";
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
-devAgent(issue);
+devAgent();
