@@ -152,22 +152,7 @@ jobs:
           node-version: '22'
       - run: npm ci
 
-      - name: 📄 Carregar Agent Instructions
-        id: agent_instructions
-        run: |
-          AGENT_FILE=".github/agents/dev.agent.md"
-          if [ -f "$AGENT_FILE" ]; then
-            echo "✅ Agent file found: $AGENT_FILE"
-            CONTENT=$(cat "$AGENT_FILE")
-            echo "instructions<<EOF" >> $GITHUB_OUTPUT
-            echo "$CONTENT" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️ Agent file not found: $AGENT_FILE"
-            echo "instructions=No agent instructions found." >> $GITHUB_OUTPUT
-          fi
-
-      - name: 🔍 Carregar Detalhes da Issue
+      - name:  Carregar Detalhes da Issue
         id: issue_details
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -183,25 +168,13 @@ jobs:
           echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
           echo "BODY_EOF" >> $GITHUB_OUTPUT
 
-      - name: 🤖 Gerar Spec e Acionar GitHub Copilot
+      - name: 🤖 Preparar Issue para GitHub Copilot
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
           ISSUE_TITLE: ${{ steps.issue_details.outputs.title }}
           ISSUE_BODY: ${{ steps.issue_details.outputs.body }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AGENT_INSTRUCTIONS: ${{ steps.agent_instructions.outputs.instructions }}
         run: npx ts-node scripts/agents/dev.ts
-
-      - name: 🏷️ Marcar Issue como Copilot Working
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh issue edit ${{ needs.validate.outputs.issue }} --add-label "copilot-working" 2>/dev/null || \
-            (gh label create "copilot-working" --color "0075ca" --description "GitHub Copilot coding agent is working" 2>/dev/null || true) && \
-            gh issue edit ${{ needs.validate.outputs.issue }} --add-label "copilot-working" || true
-          gh issue comment ${{ needs.validate.outputs.issue }} \
-            --body "🤖 **GitHub Copilot coding agent assigned.** A branch and PR will be created automatically. The card will advance to Dev-Test when the PR is opened." || true
 
   # ==========================================
   # 3. DEV-TEST
