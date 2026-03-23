@@ -14,7 +14,7 @@ name: Project Board Sync
 #     scope and store it as GH_TOKEN secret (or a separate PROJECT_TOKEN secret).
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '* * * * *'
   workflow_dispatch:
 
 permissions:
