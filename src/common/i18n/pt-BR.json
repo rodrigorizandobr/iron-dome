@@ -22,5 +22,11 @@
     "created": "Pedido {id} criado com sucesso",
     "updated": "Pedido {id} atualizado com sucesso",
     "deleted": "Pedido {id} removido com sucesso"
+  },
+  "audit_trail": {
+    "created": "Evento de auditoria {id} criado com sucesso",
+    "updated": "Evento de auditoria {id} atualizado com sucesso",
+    "deleted": "Evento de auditoria {id} removido com sucesso",
+    "event_type_not_registered": "Tipo de evento {eventType} não está registrado"
   }
 }

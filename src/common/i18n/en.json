@@ -22,5 +22,11 @@
     "created": "Order {id} created successfully",
     "updated": "Order {id} updated successfully",
     "deleted": "Order {id} removed successfully"
+  },
+  "audit_trail": {
+    "created": "Audit trail event {id} created successfully",
+    "updated": "Audit trail event {id} updated successfully",
+    "deleted": "Audit trail event {id} deleted successfully",
+    "event_type_not_registered": "Event type {eventType} is not registered"
   }
 }

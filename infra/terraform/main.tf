@@ -161,12 +161,20 @@ resource "aws_iam_role_policy" "lambda_app_policy" {
       {
         Effect   = "Allow"
         Action   = ["sqs:*"]
-        Resource = [aws_sqs_queue.app_queue.arn, aws_sqs_queue.order_processor_dlq.arn]
+        Resource = [
+          aws_sqs_queue.app_queue.arn,
+          aws_sqs_queue.order_processor_dlq.arn,
+          aws_sqs_queue.audit_trail_queue.arn,
+          aws_sqs_queue.audit_trail_dlq.arn
+        ]
       },
       {
         Effect   = "Allow"
         Action   = ["sns:Publish"]
-        Resource = [aws_sns_topic.order_events.arn]
+        Resource = [
+          aws_sns_topic.order_events.arn,
+          aws_sns_topic.audit_trail_events.arn
+        ]
       },
       {
         Effect   = "Allow"
@@ -197,6 +205,38 @@ resource "aws_lambda_function" "api_handler" {
   }
 
   tags = { Environment = var.env, Project = "iron-dome" }
+}
+
+# --- SQS (Functional: audit-trail) ---
+resource "aws_sqs_queue" "audit_trail_dlq" {
+  name = "${local.resource_prefix}-sqs-audit-trail-dlq"
+  tags = { Environment = var.env, Project = "iron-dome" }
+}
+
+resource "aws_sqs_queue" "audit_trail_queue" {
+  name                       = "${local.resource_prefix}-sqs-audit-trail"
+  visibility_timeout_seconds = 30
+  message_retention_seconds  = 86400
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.audit_trail_dlq.arn
+    maxReceiveCount     = 3
+  })
+
+  tags = { Environment = var.env, Project = "iron-dome" }
+}
+
+# --- SNS (Functional: audit-trail-events) ---
+resource "aws_sns_topic" "audit_trail_events" {
+  name = "${local.resource_prefix}-sns-audit-trail-events"
+  tags = { Environment = var.env, Project = "iron-dome" }
+}
+
+# Subscribe audit-trail SQS queue to the audit-trail-events SNS topic
+resource "aws_sns_topic_subscription" "audit_trail_events_to_sqs" {
+  topic_arn = aws_sns_topic.audit_trail_events.arn
+  protocol  = "sqs"
+  endpoint  = aws_sqs_queue.audit_trail_queue.arn
 }
 
 # --- API Gateway (REST API) ---

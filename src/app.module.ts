@@ -16,6 +16,7 @@ import { CloudWatchLogsProvider } from './providers/aws/cloudwatch-logs.provider
 import { I18nService } from './common/core/i18n.service';
 import { HealthModule } from './modules/health/health.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { AuditTrailModule } from './modules/audit-trail/audit-trail.module';
 import { AuthModule } from './common/guards/auth.module';
 import { AppController } from './app.controller';
 
@@ -28,6 +29,7 @@ import { AppController } from './app.controller';
     AuthModule,
     HealthModule,
     OrdersModule,
+    AuditTrailModule,
   ],
   controllers: [AppController],
   providers: [
