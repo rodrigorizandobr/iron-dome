@@ -1,148 +1,218 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
+
+interface CodeFile {
+  path: string;
+  content: string;
+  description: string;
+}
+
+interface GeneratedCode {
+  files: CodeFile[];
+  branch: string;
+  summary: string;
+}
 
 /**
- * Dev Agent — Prepares issue for GitHub Copilot coding agent.
- * Reads issue details, generates a specification comment,
- * and assigns the issue to Copilot for implementation.
+ * Dev Agent — Autonomous code generation agent.
+ * Reads issue → Generates code via Claude → Creates branch → Commits → Pushes
  */
-function devAgent(): void {
+async function devAgent(): Promise<void> {
   const issueNumber = process.env.ISSUE_NUMBER ?? '';
   const issueTitle = process.env.ISSUE_TITLE ?? 'No title';
   const issueBody = process.env.ISSUE_BODY ?? 'No description';
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
 
   if (!issueNumber) {
     console.error('❌ ISSUE_NUMBER env var is required.');
     process.exit(1);
   }
 
+  if (!apiKey) {
+    console.error('❌ ANTHROPIC_API_KEY env var is required.');
+    process.exit(1);
+  }
+
   console.log(`🚀 Dev Agent — Issue #${issueNumber}: ${issueTitle}`);
 
-  // Generate specification template for Copilot
-  const spec = generateSpecTemplate(issueTitle, issueBody);
+  const branchName = `feat/issue-${issueNumber}`;
 
-  // Post specification as comment
-  postComment(issueNumber, spec);
+  try {
+    // 1. Create and checkout branch
+    console.log(`📦 Creating branch: ${branchName}`);
+    checkoutBranch(branchName);
 
-  // Assign to Copilot
-  assignToCopilot(issueNumber);
+    // 2. Generate code via Claude
+    console.log('🤖 Generating code via Claude...');
+    const code = await generateCode(issueNumber, issueTitle, issueBody, apiKey);
 
-  console.log(`✅ Issue #${issueNumber} ready for GitHub Copilot.`);
+    // 3. Write files
+    console.log('📝 Writing files to disk...');
+    for (const file of code.files) {
+      writeFile(file.path, file.content);
+      console.log(`   ✅ ${file.path}`);
+    }
+
+    // 4. Commit
+    console.log('📋 Committing changes...');
+    commitChanges(issueNumber, code.summary);
+
+    // 5. Push
+    console.log('🚀 Pushing to remote...');
+    pushBranch(branchName);
+
+    // 6. Comment on issue
+    console.log('💬 Posting comment on issue...');
+    postComment(issueNumber, code);
+
+    console.log(`\n✅ Dev Agent completed successfully!`);
+    console.log(`💾 Branch: ${branchName}`);
+    console.log(`📦 Files created: ${code.files.length}`);
+  } catch (error) {
+    console.error(`❌ Dev Agent failed: ${error}`);
+    process.exit(1);
+  }
 }
 
 /**
- * Generates a Markdown specification template.
- * @param title - Issue title
- * @param body - Issue body/description
- * @returns Markdown specification
+ * Create and checkout a git branch.
  */
-function generateSpecTemplate(title: string, body: string): string {
-  return `## 🤖 Dev Agent — Implementation Spec for GitHub Copilot
+function checkoutBranch(branchName: string): void {
+  try {
+    // Try to create new branch, or checkout if exists
+    execSync(
+      `git fetch origin && git checkout -b ${branchName} 2>/dev/null || git checkout ${branchName}`,
+      {
+        stdio: 'inherit',
+      },
+    );
+  } catch {
+    // Branch might already exist
+    execSync(`git checkout ${branchName} || git checkout -b ${branchName}`, { stdio: 'inherit' });
+  }
+}
 
-**Issue:** ${title}
+/**
+ * Generate code using Claude API.
+ */
+async function generateCode(
+  issueNumber: string,
+  title: string,
+  body: string,
+  apiKey: string,
+): Promise<GeneratedCode> {
+  const client = new Anthropic({ apiKey });
 
-**Description:**
+  const prompt = `You are a senior NestJS architect for a 100% Serverless Fintech/SaaS API (Iron Dome).
+
+Issue #${issueNumber}: ${title}
+
+Description:
 ${body}
 
----
+CRITICAL RULES:
+- Use ONLY DynamoDB (BaseResourceService)
+- PK: TENANT#[tenantId]#[ENTITY], SK: [ENTITY]#[id]
+- Extend BaseResourceService<T, CreateDto, UpdateDto>
+- Use @ApiBearerAuth() on controllers
+- Multi-tenancy: ITenantRequest type
+- Soft-delete: deleted: true + updatedAt
+- Pagination: cursor-based PaginatedResult<T>
+- i18n: I18nService.translate()
+- Max 200 lines/file, JSDoc on public methods
+- Code in English, user messages via i18n
 
-### 📋 Implementation Checklist
+Generate a COMPLETE, PRODUCTION-READY implementation.
 
-#### 1. Entity Design
-- [ ] Define entity interface (fields, types, optional/required)
-- [ ] Plan DynamoDB PK/SK: \`TENANT#[tenantId]#[ENTITY]\`, \`[ENTITY]#[id]\`
-- [ ] Identify lifecycle (soft-delete, audit trail, timestamps)
+Output ONLY valid JSON (NO markdown, NO backticks):
+{
+  "entityName": "string (PascalCase, singular)",
+  "description": "string",
+  "files": [
+    {
+      "path": "src/modules/[entity]/dto/create-[entity].dto.ts",
+      "content": "full TypeScript content"
+    }
+  ]
+}
 
-#### 2. Service Layer
-- [ ] Extend \`BaseResourceService<T>\` for CRUD
-- [ ] Implement \`create(tenantId, createDto)\` with AuditTrail
-- [ ] Implement \`findOne(tenantId, id)\` with soft-delete filter
-- [ ] Implement \`findAll(tenantId, pagination)\` returning \`PaginatedResult<T>\`
-- [ ] Implement \`update(tenantId, id, updateDto)\` with AuditTrail
-- [ ] Implement \`delete(tenantId, id)\` (soft-delete only)
+Include files:
+1. DTOs (create, update, response)
+2. Service (extends BaseResourceService)
+3. Controller (CRUD routes with JWT)
+4. Module
+5. Index barrel export
+6. Test stubs (*.spec.ts)`;
 
-#### 3. Event Publishing (if needed)
-- [ ] Create \`[Entity]EventPublisher\` with SNS topic
-- [ ] Publish events: \`publishCreated(tenantId, entity)\`
-- [ ] Publish events: \`publishUpdated(tenantId, entity)\`
-- [ ] Publish events: \`publishDeleted(tenantId, id)\`
+  const response = await client.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 8000,
+    messages: [{ role: 'user', content: prompt }],
+  });
 
-#### 4. SQS Consumer (if needed)
-- [ ] Create \`[Entity]ProcessorService extends SqsConsumerService\`
-- [ ] Handle message polling and processing
+  const content = response.content[0];
+  const text = content && 'text' in content ? content.text : '';
 
-#### 5. Controller
-- [ ] Add \`@ApiBearerAuth()\` at class level
-- [ ] \`POST /\` → \`create(@Request() req: ITenantRequest, @Body() dto)\`
-- [ ] \`GET /\` → \`findAll(@Request() req: ITenantRequest, @Query() pagination: PaginationQueryDto)\`
-- [ ] \`GET /:id\` → \`findOne(@Request() req: ITenantRequest, @Param('id') id: string)\`
-- [ ] \`PATCH /:id\` → \`update(@Request() req: ITenantRequest, @Param('id') id, @Body() dto)\`
-- [ ] \`DELETE /:id\` → \`delete(@Request() req: ITenantRequest, @Param('id') id)\`
+  let parsed: { entityName: string; description: string; files: CodeFile[] };
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    console.error('Failed to parse Claude response:', text.slice(0, 500));
+    throw new Error('Claude response not valid JSON');
+  }
 
-#### 6. DTOs
-- [ ] \`Create[Entity]Dto\` with \`@IsNotEmpty()\`, \`@IsString()\`, etc.
-- [ ] \`Update[Entity]Dto\` (partial)
-- [ ] \`[Entity]ResponseDto\` with \`@ApiProperty()\`
-
-#### 7. Module Registration
-- [ ] Import \`DynamoDBProvider\`, \`SNSProvider\` (if events)
-- [ ] Register service, controller, event publisher, consumer
-
-#### 8. Terraform (if new AWS resources)
-- [ ] Add DynamoDB table or GSI in \`infra/terraform/main.tf\`
-- [ ] Add SNS topic (if events)
-- [ ] Add SQS queue + DLQ (if consumer)
-
-#### 9. i18n (if user-facing messages)
-- [ ] Add keys to \`src/common/i18n/en.json\`
-- [ ] Add keys to \`src/common/i18n/pt-BR.json\`
-- [ ] Use \`I18nService.translate(key, args)\` in service/controller
-
-#### 10. Code Quality
-- [ ] Max 200 lines/file
-- [ ] JSDoc on all public methods
-- [ ] Use \`ObfuscationService.obfuscate()\` before logging sensitive data
-- [ ] Error handling via \`ErrorCode\` enum
-- [ ] Max 15 cognitive complexity (SonarJS)
-
----
-
-### 🏗️ Iron Dome Architecture Rules
-
-**MANDATORY:**
-- ✅ ONLY DynamoDB (never PostgreSQL/Prisma)
-- ✅ Extend \`BaseResourceService\` for CRUD
-- ✅ PK: \`TENANT#[tenantId]#[ENTITY]\`, SK: \`[ENTITY]#[id]\`
-- ✅ JWT: \`@Public()\` decorator for bypass, \`@ApiBearerAuth()\` on controller
-- ✅ Multi-tenancy: \`x-tenant-id\` header + \`ITenantRequest\` type
-- ✅ Pagination: cursor-based \`PaginatedResult<T>\` only
-- ✅ Soft-delete: \`deleted: true\` + \`updatedAt\` timestamp
-- ✅ Audit Trail: \`AuditTrailService.record(tenantId, action, resourceType, id)\`
-- ✅ Events: SNS/SQS fire-and-forget, never break main flow
-- ✅ i18n: All user messages via \`I18nService.translate()\`
-- ✅ AWS Naming: \`BaseProvider.getResourceName(type, name)\`
-
-**Code:**
-- Code and comments in English
-- User messages via i18n (Portuguese + English)
-- ZERO \`any\` types (strict TypeScript)
-
----
-
-**Reference:** See [.github/agents/dev.agent.md](.github/agents/dev.agent.md) for complete Iron Dome architecture guide.
-
----
-
-*Assigned to GitHub Copilot via automated workflow. Ready to code! 🚀*`;
+  return {
+    files: parsed.files,
+    branch: `feat/issue-${issueNumber}`,
+    summary: parsed.description,
+  };
 }
 
 /**
- * Posts specification comment on the issue.
- * @param issueNumber - GitHub issue number
- * @param body - Markdown comment body
+ * Write file to disk, creating directories as needed.
  */
-function postComment(issueNumber: string, body: string): void {
-  const tmpFile = `/tmp/dev_spec_${issueNumber}.md`;
+function writeFile(filePath: string, content: string): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
+/**
+ * Commit changes to git.
+ */
+function commitChanges(issueNumber: string, summary: string): void {
+  execSync('git add .', { stdio: 'inherit' });
+  execSync(`git commit -m "feat(issue-${issueNumber}): ${summary}"`, {
+    stdio: 'inherit',
+  });
+}
+
+/**
+ * Push branch to remote.
+ */
+function pushBranch(branchName: string): void {
+  execSync(`git push -u origin ${branchName}`, { stdio: 'inherit' });
+}
+
+/**
+ * Post completion comment on GitHub issue.
+ */
+function postComment(issueNumber: string, code: GeneratedCode): void {
+  const body = `✅ **Dev Agent Implementation Complete!**
+
+Generated ${code.files.length} files:
+${code.files.map((f) => `- \`${f.path}\``).join('\n')}
+
+Branch: \`${code.branch}\`
+Summary: ${code.summary}
+
+Advancing to Dev-Test for test generation...`;
+
+  const tmpFile = `/tmp/dev_comment_${issueNumber}.md`;
   fs.writeFileSync(tmpFile, body);
 
   try {
@@ -154,20 +224,5 @@ function postComment(issueNumber: string, body: string): void {
   }
 }
 
-/**
- * Assigns the issue to GitHub Copilot coding agent.
- * @param issueNumber - GitHub issue number
- */
-function assignToCopilot(issueNumber: string): void {
-  try {
-    // Create label if it doesn't exist
-    execSync('gh label create copilot-working --color "0075ca" --description "GitHub Copilot working" 2>/dev/null || true');
-    // Add label
-    execSync(`gh issue edit ${issueNumber} --add-label "copilot-working" 2>/dev/null || true`);
-    console.log(`✅ Assigned to GitHub Copilot (label: copilot-working)`);
-  } catch (error) {
-    console.warn('⚠️  Could not add label. Continuing...');
-  }
-}
-
-devAgent();
+// Main execution
+devAgent().catch(console.error);
