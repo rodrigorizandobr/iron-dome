@@ -1,75 +1,48 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
-
-interface CodeFile {
-  path: string;
-  content: string;
-  description: string;
-}
-
-interface GeneratedCode {
-  files: CodeFile[];
-  branch: string;
-  summary: string;
-}
 
 /**
- * Dev Agent — Autonomous code generation agent.
- * Reads issue → Generates code via Claude → Creates branch → Commits → Pushes
+ * Dev Agent — Prepares issue for GitHub Copilot coding agent.
+ * Creates branch, generates implementation checklist, posts to issue,
+ * and assigns to Copilot for autonomous implementation.
+ *
+ * GitHub Copilot will:
+ * 1. Read the issue and checklist
+ * 2. Create a git branch with code
+ * 3. Open a PR
+ * 4. copilot-pr.yml will detect the PR and advance the card
  */
-async function devAgent(): Promise<void> {
+function devAgent(): void {
   const issueNumber = process.env.ISSUE_NUMBER ?? '';
   const issueTitle = process.env.ISSUE_TITLE ?? 'No title';
   const issueBody = process.env.ISSUE_BODY ?? 'No description';
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
 
   if (!issueNumber) {
     console.error('❌ ISSUE_NUMBER env var is required.');
     process.exit(1);
   }
 
-  if (!apiKey) {
-    console.error('❌ ANTHROPIC_API_KEY env var is required.');
-    process.exit(1);
-  }
-
   console.log(`🚀 Dev Agent — Issue #${issueNumber}: ${issueTitle}`);
 
-  const branchName = `feat/issue-${issueNumber}`;
-
   try {
-    // 1. Create and checkout branch
-    console.log(`📦 Creating branch: ${branchName}`);
-    checkoutBranch(branchName);
+    // 1. Create feature branch
+    console.log(`📦 Creating branch: feat/issue-${issueNumber}`);
+    createBranch(issueNumber);
 
-    // 2. Generate code via Claude
-    console.log('🤖 Generating code via Claude...');
-    const code = await generateCode(issueNumber, issueTitle, issueBody, apiKey);
+    // 2. Generate and post implementation spec
+    console.log('📋 Posting implementation checklist...');
+    const spec = generateSpec(issueNumber, issueTitle, issueBody);
+    postComment(issueNumber, spec);
 
-    // 3. Write files
-    console.log('📝 Writing files to disk...');
-    for (const file of code.files) {
-      writeFile(file.path, file.content);
-      console.log(`   ✅ ${file.path}`);
-    }
+    // 3. Assign to Copilot and add label
+    console.log('🤖 Assigning to GitHub Copilot...');
+    assignToCopilot(issueNumber);
 
-    // 4. Commit
-    console.log('📋 Committing changes...');
-    commitChanges(issueNumber, code.summary);
-
-    // 5. Push
-    console.log('🚀 Pushing to remote...');
-    pushBranch(branchName);
-
-    // 6. Comment on issue
-    console.log('💬 Posting comment on issue...');
-    postComment(issueNumber, code);
-
-    console.log(`\n✅ Dev Agent completed successfully!`);
-    console.log(`💾 Branch: ${branchName}`);
-    console.log(`📦 Files created: ${code.files.length}`);
+    console.log(`\n✅ Dev Agent completed!`);
+    console.log(`\n📌 GitHub Copilot will now:`);
+    console.log(`   1. Implement the checklist`);
+    console.log(`   2. Create a PR on feat/issue-${issueNumber}`);
+    console.log(`   3. Trigger automatic board advancement\n`);
   } catch (error) {
     console.error(`❌ Dev Agent failed: ${error}`);
     process.exit(1);
@@ -77,152 +50,165 @@ async function devAgent(): Promise<void> {
 }
 
 /**
- * Create and checkout a git branch.
+ * Create and checkout feature branch.
  */
-function checkoutBranch(branchName: string): void {
+function createBranch(issueNumber: string): void {
+  const branchName = `feat/issue-${issueNumber}`;
+
   try {
-    // Try to create new branch, or checkout if exists
+    // Fetch latest and create branch
+    execSync('git fetch origin 2>/dev/null || true', { stdio: 'pipe' });
     execSync(
-      `git fetch origin && git checkout -b ${branchName} 2>/dev/null || git checkout ${branchName}`,
+      `git checkout -b ${branchName} origin/main 2>/dev/null || git checkout ${branchName} 2>/dev/null || true`,
       {
-        stdio: 'inherit',
+        stdio: 'pipe',
       },
     );
-  } catch {
-    // Branch might already exist
-    execSync(`git checkout ${branchName} || git checkout -b ${branchName}`, { stdio: 'inherit' });
+    console.log(`✅ Branch ready: ${branchName}`);
+  } catch (error) {
+    console.warn(`⚠️  Branch operation: ${error}`);
   }
 }
 
 /**
- * Generate code using Claude API.
+ * Generate implementation checklist based on issue.
  */
-async function generateCode(
-  issueNumber: string,
-  title: string,
-  body: string,
-  apiKey: string,
-): Promise<GeneratedCode> {
-  const client = new Anthropic({ apiKey });
+function generateSpec(issueNumber: string, title: string, body: string): string {
+  return `## 🤖 Dev Agent — Implementation Spec
 
-  const prompt = `You are a senior NestJS architect for a 100% Serverless Fintech/SaaS API (Iron Dome).
+**Issue:** #${issueNumber} — ${title}
 
-Issue #${issueNumber}: ${title}
-
-Description:
+**Description:**
 ${body}
 
-CRITICAL RULES:
-- Use ONLY DynamoDB (BaseResourceService)
-- PK: TENANT#[tenantId]#[ENTITY], SK: [ENTITY]#[id]
-- Extend BaseResourceService<T, CreateDto, UpdateDto>
-- Use @ApiBearerAuth() on controllers
-- Multi-tenancy: ITenantRequest type
-- Soft-delete: deleted: true + updatedAt
-- Pagination: cursor-based PaginatedResult<T>
-- i18n: I18nService.translate()
-- Max 200 lines/file, JSDoc on public methods
-- Code in English, user messages via i18n
+---
 
-Generate a COMPLETE, PRODUCTION-READY implementation.
+### 📋 Implementation Checklist
 
-Output ONLY valid JSON (NO markdown, NO backticks):
-{
-  "entityName": "string (PascalCase, singular)",
-  "description": "string",
-  "files": [
-    {
-      "path": "src/modules/[entity]/dto/create-[entity].dto.ts",
-      "content": "full TypeScript content"
-    }
-  ]
-}
+#### 1️⃣ Entity & Data Model
+- [ ] Define TypeScript interface (fields, types)
+- [ ] Design DynamoDB PK/SK: \`TENANT#[tenantId]#[ENTITY]\`, \`[ENTITY]#[id]\`
+- [ ] Plan soft-delete strategy
 
-Include files:
-1. DTOs (create, update, response)
-2. Service (extends BaseResourceService)
-3. Controller (CRUD routes with JWT)
-4. Module
-5. Index barrel export
-6. Test stubs (*.spec.ts)`;
+#### 2️⃣ Data Access Layer
+- [ ] Create Service extending \`BaseResourceService<T>\`
+- [ ] Implement CRUD methods (create, findOne, findAll, update, delete)
+- [ ] Add pagination support (PaginatedResult<T>)
+- [ ] Publish events via SNS (if applicable)
+- [ ] Record audit trail (AuditTrailService)
 
-  const response = await client.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 8000,
-    messages: [{ role: 'user', content: prompt }],
-  });
+#### 3️⃣ API Layer
+- [ ] Create DTOs (Create, Update, Response)
+- [ ] Create Controller with routes
+- [ ] Add \`@ApiBearerAuth()\` for JWT protection
+- [ ] Use \`ITenantRequest\` for multi-tenancy
+- [ ] Add Swagger documentation (\`@ApiProperty\`)
 
-  const content = response.content[0];
-  const text = content && 'text' in content ? content.text : '';
+#### 4️⃣ Module & Integration
+- [ ] Create Module file
+- [ ] Register providers (DynamoDB, SNS, SQS if needed)
+- [ ] Export public API
+- [ ] Import in AppModule
 
-  let parsed: { entityName: string; description: string; files: CodeFile[] };
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    console.error('Failed to parse Claude response:', text.slice(0, 500));
-    throw new Error('Claude response not valid JSON');
-  }
+#### 5️⃣ Event Handling (if needed)
+- [ ] Create EventPublisher (SNS)
+- [ ] Create Consumer (SQS)
+- [ ] Configure queue + DLQ
 
-  return {
-    files: parsed.files,
-    branch: `feat/issue-${issueNumber}`,
-    summary: parsed.description,
-  };
+#### 6️⃣ Configuration & i18n
+- [ ] Add error messages to \`src/common/i18n/en.json\`
+- [ ] Add translations to \`src/common/i18n/pt-BR.json\`
+
+#### 7️⃣ Infrastructure
+- [ ] Add Terraform resources (tables, queues, topics)
+- [ ] Update Lambda IAM policies if needed
+
+#### 8️⃣ Code Quality
+- [ ] Max 200 lines per file
+- [ ] JSDoc on all public methods
+- [ ] Use ErrorCode enum for errors
+- [ ] Max 15 cognitive complexity
+- [ ] Zero \`any\` types
+
+---
+
+### 🏗️ Iron Dome Architecture Rules
+
+**MANDATORY:**
+- ✅ ONLY **DynamoDB** (BaseResourceService)
+- ✅ **PK/SK pattern:** \`TENANT#tenantId#ENTITY\` / \`ENTITY#id\`
+- ✅ **Multi-tenancy:** \`x-tenant-id\` header + \`ITenantRequest\`
+- ✅ **Pagination:** cursor-based \`PaginatedResult<T>\`
+- ✅ **Soft-delete:** \`deleted: true\` + \`updatedAt\`
+- ✅ **JWT:** \`@ApiBearerAuth()\` on controller
+- ✅ **Audit:** \`AuditTrailService.record()\` on CUD
+- ✅ **i18n:** \`I18nService.translate()\` for user messages
+- ✅ **Code:** English, max 200 lines/file, JSDoc
+
+**Events (if applicable):**
+- SNS topic for events (created, updated, deleted)
+- SQS consumer for async processing
+- Fire-and-forget (never block main flow)
+
+---
+
+**Reference:** [.github/agents/dev.agent.md](.github/agents/dev.agent.md)
+
+---
+
+**Next steps:**
+1. Copilot generates code following this checklist
+2. Copilot creates a PR on \`feat/issue-${issueNumber}\`
+3. GitHub workflow detects PR → advances card to Dev-Test
+4. Dev-Test agent generates unit + integration tests
+
+---
+
+*Assigned to GitHub Copilot coding agent. Ready to code! 🚀*`;
 }
 
 /**
- * Write file to disk, creating directories as needed.
+ * Post implementation spec as issue comment.
  */
-function writeFile(filePath: string, content: string): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(filePath, content, 'utf-8');
-}
-
-/**
- * Commit changes to git.
- */
-function commitChanges(issueNumber: string, summary: string): void {
-  execSync('git add .', { stdio: 'inherit' });
-  execSync(`git commit -m "feat(issue-${issueNumber}): ${summary}"`, {
-    stdio: 'inherit',
-  });
-}
-
-/**
- * Push branch to remote.
- */
-function pushBranch(branchName: string): void {
-  execSync(`git push -u origin ${branchName}`, { stdio: 'inherit' });
-}
-
-/**
- * Post completion comment on GitHub issue.
- */
-function postComment(issueNumber: string, code: GeneratedCode): void {
-  const body = `✅ **Dev Agent Implementation Complete!**
-
-Generated ${code.files.length} files:
-${code.files.map((f) => `- \`${f.path}\``).join('\n')}
-
-Branch: \`${code.branch}\`
-Summary: ${code.summary}
-
-Advancing to Dev-Test for test generation...`;
-
-  const tmpFile = `/tmp/dev_comment_${issueNumber}.md`;
+function postComment(issueNumber: string, body: string): void {
+  const tmpFile = `/tmp/dev_spec_${issueNumber}.md`;
   fs.writeFileSync(tmpFile, body);
 
   try {
     execSync(`gh issue comment ${issueNumber} --body-file "${tmpFile}"`, {
-      stdio: 'inherit',
+      stdio: 'pipe',
     });
+    console.log(`✅ Spec posted on issue #${issueNumber}`);
+  } catch (error) {
+    console.warn(`⚠️  Failed to post comment: ${error}`);
   } finally {
     fs.unlinkSync(tmpFile);
   }
 }
 
-// Main execution
-devAgent().catch(console.error);
+/**
+ * Assign issue to Copilot and add label.
+ */
+function assignToCopilot(issueNumber: string): void {
+  try {
+    // Create label if missing
+    execSync(
+      'gh label create copilot-working --color "0075ca" --description "GitHub Copilot working" 2>/dev/null || true',
+      {
+        stdio: 'pipe',
+      },
+    );
+
+    // Add label
+    execSync(`gh issue edit ${issueNumber} --add-label "copilot-working"`, {
+      stdio: 'pipe',
+    });
+
+    console.log(`✅ Label "copilot-working" added to issue #${issueNumber}`);
+  } catch (error) {
+    console.warn(`⚠️  Failed to add label: ${error}`);
+  }
+}
+
+// Main
+devAgent();

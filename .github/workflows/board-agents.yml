@@ -136,10 +136,15 @@ jobs:
   # ==========================================
   # 2. DEV — GitHub Copilot Coding Agent
   # ==========================================
-  # This job generates a rich implementation spec and assigns the issue
-  # to the GitHub Copilot coding agent, which will create a branch + PR.
-  # The card advances to Dev-Test automatically via copilot-pr.yml when
-  # the Copilot PR is opened.
+  # Creates feat/issue-X branch, posts implementation spec to issue,
+  # and assigns to GitHub Copilot coding agent.
+  #
+  # Workflow:
+  # 1. Dev Agent posts detailed checklist comment
+  # 2. Copilot reads issue and checklist
+  # 3. Copilot creates code on feat/issue-X branch
+  # 4. Copilot opens a PR
+  # 5. copilot-pr.yml detects PR → advances card to Dev-Test
   # ==========================================
   agent-dev:
     needs: [validate]
@@ -174,34 +179,25 @@ jobs:
           echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
           echo "BODY_EOF" >> $GITHUB_OUTPUT
 
-      - name: 💻 Gerar Código (Dev Agent)
+      - name: 🤖 Preparar para GitHub Copilot
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
           ISSUE_TITLE: ${{ steps.issue_details.outputs.title }}
           ISSUE_BODY: ${{ steps.issue_details.outputs.body }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx ts-node scripts/agents/dev.ts
 
-      - name: 📋 Avancar para Dev-Test
-        env:
-          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
-          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
-          OWNER: ${{ github.repository_owner }}
-          ISSUE: ${{ needs.validate.outputs.issue }}
-          TARGET_COLUMN: Dev-Test
+      - name: 📌 Aguardando GitHub Copilot
         run: |
-          cp .github/scripts/move-card.py /tmp/move-card.py 2>/dev/null || true
-          python3 /tmp/move-card.py || true
-
-      - name: 🚀 Disparar Agent Dev-Test
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run board-agents.yml \
-            --repo ${{ github.repository }} \
-            -f stage=dev-test \
-            -f issue_number=${{ needs.validate.outputs.issue }} || true
+          echo "✅ Dev Agent preparado para GitHub Copilot"
+          echo ''
+          echo '📋 Próximas etapas:'
+          echo '1. GitHub Copilot lê issue e checklist'
+          echo '2. Copilot implementa funções na branch feat/issue-${{ needs.validate.outputs.issue }}'
+          echo '3. Copilot abre um PR'
+          echo '4. Workflow copilot-pr.yml detecta PR'
+          echo '5. Card avança para Dev-Test automaticamente'
+          echo ''
 
   # ==========================================
   # 3. DEV-TEST

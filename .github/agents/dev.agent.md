@@ -241,3 +241,110 @@ Ao criar um novo recurso/feature, siga esta ordem:
 | 15  | Pagination (Cursor-based)        | `dynamodb-single-table`, `new-module`    |
 | 16  | Event-Driven (SNS/SQS)           | `new-module` (event publisher/processor) |
 | ⭐  | Gerar novo módulo CRUD           | `new-module`                             |
+
+---
+
+## 🤖 GitHub Copilot Coding Agent — Workflow Automático
+
+Seu processo durante a automação:
+
+### Fase 1️⃣: Análise (Você está aqui)
+
+Dev Agent (`scripts/agents/dev.ts`) irá:
+
+1. ✅ Criar branch `feat/issue-X`
+2. ✅ Postar checklist detalhado como comentário na issue
+3. ✅ Adicionar label `copilot-working`
+4. ✅ Repassar tudo a você
+
+### Fase 2️⃣: Desenvolvimento (Seu trabalho)
+
+**Você deve:**
+
+1. Implementar a checklist de 8 passos na branch `feat/issue-X`
+2. Seguir TODAS as regras acima (especialmente 1-16)
+3. Garantir `npm run lint` sem warnings
+4. Criar um PR com:
+   - Título: `feat(#X): [feature name]`
+   - Descrição: `Closes #X` + checklist marcada
+   - Destinado a `main`
+
+### Fase 3️⃣: Automação (CI/CD)
+
+Quando você abrir o PR:
+
+1. GitHub Actions detecta `copilot-working` label + seu PR
+2. Workflow `copilot-pr.yml` é acionado
+3. Remove label `copilot-working`
+4. Adiciona label `in-review`
+5. Move card para `Dev-Test` no projeto
+6. Dispara Dev-Test Agent automaticamente
+
+---
+
+## ✅ Checklist de Implementação
+
+Use este checklist no comentário que você vai receber:
+
+```markdown
+### Entity & Data Model
+
+- [ ] TypeScript interface com tipos específicos
+- [ ] DynamoDB PK/SK: TENANT#[tenantId]#[ENTITY] / [ENTITY]#[id]
+- [ ] Soft-delete via deleted: true + updatedAt
+
+### Data Access Layer (Service)
+
+- [ ] Herdar de BaseResourceService<T, CreateDto, UpdateDto>
+- [ ] Implementar create(), findOne(), findAll(), update(), delete()
+- [ ] findAll() retorna PaginatedResult<T> (cursor-based)
+- [ ] Injetar EventPublisher + AuditTrailService
+- [ ] Publicar SNS events em create/update/delete
+- [ ] Registrar audit trail em cada CUD
+
+### API Layer (Controller + DTOs)
+
+- [ ] Criar CreateDto com @IsNotEmpty(), @IsString() etc
+- [ ] Criar UpdateDto com validação parcial
+- [ ] Criar ResponseDto com @ApiProperty para Swagger
+- [ ] Implementar 5 rotas: POST Create, GET List, GET :id, PATCH :id, DELETE :id
+- [ ] Usar @ApiBearerAuth() na classe
+- [ ] Usar ITenantRequest tipado
+- [ ] @Query() pagination: PaginationQueryDto em findAll
+
+### Module & Registration
+
+- [ ] Criar ModuleName.module.ts
+- [ ] Registrar Service + Controller
+- [ ] Injetar Providers (DynamoDB, SNS, SQS se necessário)
+- [ ] Importar em AppModule
+
+### Event-Driven (se aplicável)
+
+- [ ] Criar [Entity]EventPublisher estendendo SNSProvider
+- [ ] Publicar created/updated/deleted events
+- [ ] Criar [Entity]Processor estendendo SqsConsumerService
+- [ ] Configurar onModuleInit para iniciar consumer
+
+### Internationalization
+
+- [ ] Adicionar chaves em src/common/i18n/en.json
+- [ ] Adicionar chaves em src/common/i18n/pt-BR.json
+- [ ] Usar I18nService.translate() em erros e mensagens
+
+### Infrastructure (Terraform)
+
+- [ ] Adicionar DynamoDB table (se necessário)
+- [ ] Adicionar SQS queue + DLQ (se necessário)
+- [ ] Adicionar SNS topic (se necessário)
+- [ ] Atualizar IAM role do Lambda
+- [ ] Usar BaseProvider.getResourceName() para nomes
+
+### Code Quality
+
+- [ ] Máximo 200 linhas/arquivo
+- [ ] JSDoc em todos os métodos públicos
+- [ ] Max 15 de complexidade cognitiva
+- [ ] Zero `any` types
+- [ ] npm run lint sem warnings
+```
