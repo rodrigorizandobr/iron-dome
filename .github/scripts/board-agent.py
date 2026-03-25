@@ -416,8 +416,7 @@ def main():
 
     pending = [
         c for c in board["cards"]
-        if c["state"] == "OPEN"
-        and c["column"] is not None
+        if c["column"] is not None
         and c["column"] != last_col
         and LABEL not in c["labels"]
         and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
