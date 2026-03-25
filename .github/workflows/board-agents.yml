@@ -439,7 +439,7 @@ jobs:
       - name: Criar Pull Request
         id: create_pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         run: |
           ISSUE="${{ needs.validate.outputs.issue }}"
 
@@ -471,7 +471,7 @@ jobs:
           else
             # Cria PR (ou obtem URL se ja existir)
             set +e
-            PR_URL=$(gh pr create \
+            PR_OUTPUT=$(gh pr create \
               --title "feat: ${ISSUE_TITLE} (closes #${ISSUE})" \
               --body "$(echo -e "$PR_BODY")" \
               --base main \
@@ -480,8 +480,11 @@ jobs:
             set -e
 
             if [ $PR_EXIT -ne 0 ]; then
+              echo "gh pr create failed (exit $PR_EXIT): $PR_OUTPUT"
               # PR might already exist
               PR_URL=$(gh pr view "$BRANCH" --json url -q .url 2>/dev/null || echo "none")
+            else
+              PR_URL="$PR_OUTPUT"
             fi
 
             echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
