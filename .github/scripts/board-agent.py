@@ -120,6 +120,48 @@ def get_board():
     }
 
 
+def add_issue_to_project(board, issue_number):
+    """Add an issue to the project board if not already present."""
+    # Get issue node ID
+    data = gh_gql("""query($owner:String!,$repo:String!,$n:Int!) {
+      repository(owner:$owner, name:$repo) {
+        issue(number:$n) { id title body state }
+      }
+    }""", owner=OWNER, repo=REPO, n=int(issue_number))
+    if not data:
+        return None
+
+    issue = data["data"]["repository"]["issue"]
+    if not issue:
+        print(f"  ❌ Issue #{issue_number} not found")
+        return None
+
+    # Add to project
+    result = gh_gql("""mutation($proj:ID!, $content:ID!) {
+      addProjectV2ItemById(input:{projectId:$proj contentId:$content}) {
+        item { id }
+      }
+    }""", proj=board["id"], content=issue["id"])
+    if not result:
+        return None
+
+    item_id = result["data"]["addProjectV2ItemById"]["item"]["id"]
+    first_col = board["columns"][0] if board["columns"] else None
+
+    card = {
+        "item_id": item_id,
+        "number": int(issue_number),
+        "title": issue["title"],
+        "body": issue.get("body") or "",
+        "column": first_col,
+        "labels": [],
+        "state": issue.get("state", "OPEN"),
+    }
+    board["cards"].append(card)
+    print(f"  📥 Added #{issue_number} to project")
+    return card
+
+
 # ── Label helpers ─────────────────────────────────────────
 
 def label_add(n):
@@ -361,6 +403,12 @@ def main():
     cols = board["columns"]
     last_col = cols[-1] if cols else "Done"
     print(f"   Columns: {' → '.join(cols)}")
+
+    # Auto-add issue to project if not present
+    if MANUAL_ISSUE:
+        found = any(str(c["number"]) == MANUAL_ISSUE for c in board["cards"])
+        if not found:
+            add_issue_to_project(board, MANUAL_ISSUE)
 
     # Optional: move card to a specific column before processing
     if TARGET_COLUMN and MANUAL_ISSUE:
