@@ -7,7 +7,7 @@ import {
   Body,
   Param,
   Query,
-  Request,
+  Req,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -18,108 +18,79 @@ import {
   ApiOkResponse,
   ApiNotFoundResponse,
   ApiBadRequestResponse,
+  ApiHeader,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AuditTrailApiService } from './audit-trail.service';
 import { CreateAuditTrailDto, UpdateAuditTrailDto, AuditTrailResponseDto } from './dto';
 import { PaginationQueryDto } from '../../common/core/pagination-query.dto';
-import { ITenantRequest } from '../../common/middlewares/multi-tenancy.middleware';
+
+/** Extended request type with tenantId from MultiTenancyMiddleware. */
+interface ITenantRequest extends Request {
+  tenantId: string;
+}
+
+const MSG_NOT_FOUND = 'Event not found';
 
 /**
  * Audit Trail API Controller.
- * Endpoints for CRUD operations on audit trail events.
+ * All endpoints require `x-tenant-id` header for multi-tenancy.
  */
-@Controller('audit-trail')
 @ApiBearerAuth()
 @ApiTags('Audit Trail')
+@ApiHeader({ name: 'x-tenant-id', required: true, description: 'Tenant identifier' })
+@Controller('audit-trail')
 export class AuditTrailController {
   constructor(private readonly service: AuditTrailApiService) {}
 
-  /**
-   * Create a new audit trail event.
-   * Event is published to SQS for async processing.
-   * @param req - HTTP request with tenant info
-   * @param createDto - Event details
-   * @returns Created event
-   */
+  /** Create a new audit trail event (async via SQS). */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiCreatedResponse({
-    description: 'Audit trail event created (async processing)',
-    type: AuditTrailResponseDto,
-  })
+  @ApiCreatedResponse({ description: 'Audit trail event created', type: AuditTrailResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid event type or missing fields' })
   async create(
-    @Request() req: ITenantRequest,
+    @Req() req: ITenantRequest,
     @Body() createDto: CreateAuditTrailDto,
   ): Promise<AuditTrailResponseDto> {
-    return this.service.create({ ...createDto, tenantId: req.tenantId });
+    return this.service.create({
+      ...createDto,
+      tenantId: req.tenantId,
+    } as unknown as CreateAuditTrailDto);
   }
 
-  /**
-   * Get all audit trail events for tenant (paginated).
-   * @param req - HTTP request with tenant info
-   * @param pagination - Pagination parameters
-   * @returns Paginated audit trail events
-   */
+  /** List all audit trail events for tenant (paginated). */
   @Get()
-  @ApiOkResponse({
-    description: 'List of audit trail events',
-    type: [AuditTrailResponseDto],
-  })
-  async findAll(
-    @Request() req: ITenantRequest,
-    @Query() pagination: PaginationQueryDto,
-  ) {
+  @ApiOkResponse({ description: 'Paginated audit trail events list' })
+  async findAll(@Req() req: ITenantRequest, @Query() pagination: PaginationQueryDto) {
     return this.service.findAll(req.tenantId, pagination);
   }
 
-  /**
-   * Get a specific audit trail event by ID.
-   * @param req - HTTP request with tenant info
-   * @param id - Event ID
-   * @returns Audit trail event
-   */
+  /** Get a specific audit trail event by ID. */
   @Get(':id')
-  @ApiOkResponse({
-    description: 'Audit trail event details',
-    type: AuditTrailResponseDto,
-  })
-  @ApiNotFoundResponse({ description: 'Event not found' })
-  async findOne(@Request() req: ITenantRequest, @Param('id') id: string): Promise<AuditTrailResponseDto> {
+  @ApiOkResponse({ description: 'Audit trail event details', type: AuditTrailResponseDto })
+  @ApiNotFoundResponse({ description: MSG_NOT_FOUND })
+  async findOne(@Req() req: ITenantRequest, @Param('id') id: string) {
     return this.service.findOne(req.tenantId, id);
   }
 
-  /**
-   * Update an audit trail event metadata.
-   * @param req - HTTP request with tenant info
-   * @param id - Event ID
-   * @param updateDto - Updated fields
-   * @returns Updated event
-   */
+  /** Update an audit trail event metadata. */
   @Patch(':id')
-  @ApiOkResponse({
-    description: 'Audit trail event updated',
-    type: AuditTrailResponseDto,
-  })
-  @ApiNotFoundResponse({ description: 'Event not found' })
+  @ApiOkResponse({ description: 'Audit trail event updated', type: AuditTrailResponseDto })
+  @ApiNotFoundResponse({ description: MSG_NOT_FOUND })
   async update(
-    @Request() req: ITenantRequest,
+    @Req() req: ITenantRequest,
     @Param('id') id: string,
     @Body() updateDto: UpdateAuditTrailDto,
-  ): Promise<AuditTrailResponseDto> {
+  ) {
     return this.service.update(req.tenantId, id, updateDto);
   }
 
-  /**
-   * Delete (soft-delete) an audit trail event.
-   * @param req - HTTP request with tenant info
-   * @param id - Event ID
-   */
+  /** Soft-delete an audit trail event. */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOkResponse({ description: 'Audit trail event deleted' })
-  @ApiNotFoundResponse({ description: 'Event not found' })
-  async delete(@Request() req: ITenantRequest, @Param('id') id: string): Promise<void> {
-    await this.service.delete(req.tenantId, id);
+  @ApiNotFoundResponse({ description: MSG_NOT_FOUND })
+  async remove(@Req() req: ITenantRequest, @Param('id') id: string) {
+    return this.service.remove(req.tenantId, id);
   }
 }

@@ -37,7 +37,11 @@ const AUDIT_TRAIL_ENTITY = 'AUDIT_TRAIL_EVENT';
  * - READ/UPDATE/DELETE/LIST: DynamoDB direct
  */
 @Injectable()
-export class AuditTrailApiService extends BaseResourceService<IAuditTrail, CreateAuditTrailDto, UpdateAuditTrailDto> {
+export class AuditTrailApiService extends BaseResourceService<
+  IAuditTrail,
+  CreateAuditTrailDto,
+  UpdateAuditTrailDto
+> {
   constructor(
     dynamo: DynamoDBProvider,
     i18n: I18nService,
@@ -52,7 +56,9 @@ export class AuditTrailApiService extends BaseResourceService<IAuditTrail, Creat
    * 2. Publishes to SQS for async processing
    * 3. Returns immediate response with ID
    */
-  async create(data: CreateAuditTrailDto & { id?: string; tenantId?: string }): Promise<IAuditTrail> {
+  async create(
+    data: CreateAuditTrailDto & { id?: string; tenantId?: string },
+  ): Promise<IAuditTrail> {
     const { eventType } = data;
 
     // Validate event type is pre-registered
@@ -63,6 +69,7 @@ export class AuditTrailApiService extends BaseResourceService<IAuditTrail, Creat
     }
 
     // Publish to SQS for async processing
+    // eslint-disable-next-line i18next/no-literal-string
     const queueUrl = this.sqs.getQueueName('audit-trail');
     await this.sqs.sendMessage(queueUrl, {
       tenantId: data.tenantId,

@@ -1,6 +1,5 @@
-import { IsString, IsEnum, IsObject, IsOptional } from 'class-validator';
+import { IsString, IsObject, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { AuditEventType } from './create-audit-trail.dto';
 
 /**
  * DTO for updating an audit trail event.

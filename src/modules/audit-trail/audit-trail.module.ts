@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditTrailController } from './audit-trail.controller';
 import { AuditTrailApiService } from './audit-trail.service';
@@ -12,10 +12,9 @@ import { AuditTrailService } from '../../common/core/audit-trail.service';
 
 /**
  * Audit Trail Module.
- * Provides CRUD operations for audit trail events with SQS/DynamoDB integration.
  * - POST creates events to SQS (async)
  * - GET/PATCH/DELETE read/modify from DynamoDB
- * - SQS consumer processes and stores events
+ * - SQS consumer processes and stores events on module init
  */
 @Module({
   controllers: [AuditTrailController],
@@ -23,6 +22,7 @@ import { AuditTrailService } from '../../common/core/audit-trail.service';
     AuditTrailApiService,
     AuditTrailEventPublisher,
     AuditTrailProcessorService,
+    ConfigService,
     DynamoDBProvider,
     SNSProvider,
     SQSProvider,
@@ -31,15 +31,4 @@ import { AuditTrailService } from '../../common/core/audit-trail.service';
   ],
   exports: [AuditTrailApiService, AuditTrailEventPublisher],
 })
-export class AuditTrailModule implements OnModuleInit {
-  constructor(private readonly processor: AuditTrailProcessorService) {}
-
-  /**
-   * Start SQS consumer on module initialization.
-   * Processes audit trail events asynchronously.
-   */
-  onModuleInit(): void {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.processor.start();
-  }
-}
+export class AuditTrailModule {}

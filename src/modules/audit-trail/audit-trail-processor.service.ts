@@ -1,36 +1,91 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { SqsConsumerService } from '../../common/consumers/sqs-consumer.service';
-import { SQSProvider } from '../../providers/aws/sqs.provider';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
 import { DynamoDBProvider } from '../../providers/aws/dynamodb.provider';
+import { BaseProvider } from '../../providers/base.provider';
+import { marshall } from '@aws-sdk/util-dynamodb';
 import { AuditEventType } from './dto';
+import { ISqsMessage } from '../../common/consumers/sqs-consumer.service';
+
+const ENTITY_TYPE = 'AUDIT_TRAIL_EVENT';
+const QUEUE_NAME = 'audit-trail';
 
 /**
  * SQS Consumer for audit trail events.
- * Processes messages from the audit-trail SQS queue and stores them in DynamoDB.
+ * Polls messages from the audit-trail queue and stores them in DynamoDB.
  */
 @Injectable()
-export class AuditTrailProcessorService extends SqsConsumerService {
-  private readonly logger = new Logger(AuditTrailProcessorService.name);
+export class AuditTrailProcessorService extends BaseProvider implements OnModuleInit {
+  private readonly client: SQSClient;
+  private readonly queueUrl: string;
+  private polling = false;
 
   constructor(
-    private readonly sqs: SQSProvider,
+    protected readonly configService: ConfigService,
     private readonly dynamo: DynamoDBProvider,
   ) {
-    super();
+    super(AuditTrailProcessorService.name, configService);
+    this.client = new SQSClient(this.getAwsConfig());
+
+    const queueName = this.getResourceName('sqs', QUEUE_NAME);
+    const { endpoint } = this.getAwsConfig();
+    const accountId = this.configService.get<string>('AWS_ACCOUNT_ID', '000000000000');
+    this.queueUrl = `${endpoint}/${accountId}/${queueName}`;
   }
 
-  /**
-   * Process a single audit trail message.
-   * Validates event type and stores to DynamoDB.
-   * @param message - SQS message body (JSON)
-   */
-  async processMessage(message: unknown): Promise<void> {
-    if (typeof message !== 'object' || !message) {
-      this.logger.error('Invalid message format');
-      return;
+  /** Starts polling on module initialization. */
+  onModuleInit() {
+    const enabled = this.configService.get<string>('SQS_CONSUMER_ENABLED', 'false');
+    if (enabled === 'true') {
+      this.startPolling();
     }
+  }
 
-    const msg = message as Record<string, unknown>;
+  /** Begin long-polling. */
+  startPolling() {
+    this.polling = true;
+    this.logger.log('Audit trail consumer started');
+    void this.poll();
+  }
+
+  /** Stop polling. */
+  stop() {
+    this.polling = false;
+  }
+
+  /** Main polling loop. */
+  private async poll() {
+    while (this.polling) {
+      try {
+        const command = new ReceiveMessageCommand({
+          QueueUrl: this.queueUrl,
+          MaxNumberOfMessages: 10,
+          WaitTimeSeconds: 20,
+        });
+        const response = await this.client.send(command);
+
+        if (response.Messages) {
+          for (const msg of response.Messages) {
+            if (!msg.Body || !msg.ReceiptHandle) continue;
+            const parsed: ISqsMessage = {
+              messageId: msg.MessageId || '',
+              body: JSON.parse(msg.Body) as Record<string, unknown>,
+              receiptHandle: msg.ReceiptHandle,
+            };
+            await this.handleMessage(parsed);
+            await this.deleteMessage(msg.ReceiptHandle);
+          }
+        }
+      } catch (error) {
+        this.handleError('poll', error);
+        await this.sleep(5000);
+      }
+    }
+  }
+
+  /** Process a single audit trail message. */
+  private async handleMessage(message: ISqsMessage): Promise<void> {
+    const body = message.body;
     const {
       tenantId,
       eventType,
@@ -41,9 +96,8 @@ export class AuditTrailProcessorService extends SqsConsumerService {
       metadata,
       description,
       timestamp,
-    } = msg;
+    } = body;
 
-    // Validate required fields
     if (
       !tenantId ||
       !eventType ||
@@ -53,83 +107,58 @@ export class AuditTrailProcessorService extends SqsConsumerService {
       !action ||
       !timestamp
     ) {
-      this.logger.error(`Missing required fields: ${JSON.stringify(msg)}`);
+      this.logger.error('Missing required fields in audit trail message');
       return;
     }
 
-    // Validate event type is registered
     if (!Object.values(AuditEventType).includes(eventType as AuditEventType)) {
-      this.logger.warn(`Unregistered event type: ${eventType}`);
+      this.logger.warn(`Unregistered event type: ${String(eventType)}`);
       return;
     }
 
-    // Generate audit trail ID
-    const id = this.generateId();
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const now = new Date().toISOString();
+    const tableName = this.getResourceName('dynamodb', ENTITY_TYPE);
 
-    // Insert into DynamoDB
-    const pk = `TENANT#${tenantId}#AUDIT_TRAIL_EVENT`;
-    const sk = `AUDIT_TRAIL_EVENT#${id}`;
+    // eslint-disable-next-line i18next/no-literal-string
+    const pk = `TENANT#${String(tenantId)}#${ENTITY_TYPE}`;
+    const sk = `${ENTITY_TYPE}#${id}`;
 
-    await this.dynamo.putItem({
-      PK: pk,
-      SK: sk,
-      id,
-      tenantId: String(tenantId),
-      eventType: String(eventType),
-      actorId: String(actorId),
-      resourceType: String(resourceType),
-      resourceId: String(resourceId),
-      action: String(action),
-      metadata: metadata as Record<string, unknown>,
-      description: description as string | undefined,
-      entityType: 'AUDIT_TRAIL_EVENT',
-      createdAt: String(timestamp),
-      updatedAt: now,
-      deleted: false,
+    await this.dynamo.putItem(
+      tableName,
+      marshall({
+        PK: pk,
+        SK: sk,
+        id,
+        tenantId: String(tenantId),
+        eventType: String(eventType),
+        actorId: String(actorId),
+        resourceType: String(resourceType),
+        resourceId: String(resourceId),
+        action: String(action),
+        metadata: metadata ?? {},
+        description: description ? String(description) : undefined,
+        entityType: ENTITY_TYPE,
+        createdAt: String(timestamp),
+        updatedAt: now,
+        deleted: false,
+      }),
+    );
+
+    this.logger.log(`Audit event saved: ${id}`);
+  }
+
+  /** Delete message after processing. */
+  private async deleteMessage(receiptHandle: string) {
+    const command = new DeleteMessageCommand({
+      QueueUrl: this.queueUrl,
+      ReceiptHandle: receiptHandle,
     });
-
-    this.logger.log(`Audit trail event saved: ${id} (${eventType})`);
+    await this.client.send(command);
   }
 
-  /**
-   * Start consuming messages from the audit-trail SQS queue.
-   */
-  async start(): Promise<void> {
-    const queueUrl = this.sqs.getQueueName('audit-trail');
-    this.logger.log(`Starting audit trail consumer: ${queueUrl}`);
-
-    while (true) {
-      try {
-        // Long-poll with 20s wait time
-        const messages = await this.sqs.receiveMessage(queueUrl, 10, 20);
-
-        for (const message of messages) {
-          try {
-            const body = JSON.parse(message.Body || '{}');
-            await this.processMessage(body);
-
-            // Delete message after successful processing
-            if (message.ReceiptHandle) {
-              await this.sqs.deleteMessage(queueUrl, message.ReceiptHandle);
-            }
-          } catch (error) {
-            this.logger.error(`Failed to process message: ${error}`);
-          }
-        }
-      } catch (error) {
-        this.logger.error(`Consumer error: ${error}`);
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-      }
-    }
-  }
-
-  /**
-   * Generate unique ID for audit trail entry.
-   * @returns ID string
-   */
-  private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  /** Utility sleep for backoff. */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
