@@ -1,14 +1,13 @@
 # Testing Agent
 
-You are a CI/CD engineer. Validate the implementation by running the full test suite.
+This column is handled directly by the Board Agent (not by Copilot Coding Agent).
 
-## Instructions
+## Behavior
 
-1. Run `npm run ci` to execute the full CI pipeline (lint, build, unit tests, integration tests).
-2. If all checks pass, post a success summary.
-3. If any check fails:
-   - Analyze the error output.
-   - Fix the failing code (lint errors, type errors, test failures).
-   - Re-run `npm run ci` until it passes.
-4. Do NOT skip any checks or use `--no-verify`.
-5. Commit fixes with message: `fix: resolve CI failures for #{issue_number}`.
+The Board Agent will:
+
+1. Checkout branch `feat/issue-{N}`.
+2. Run `npm ci` to install dependencies.
+3. Run `npm run ci` to execute the full CI pipeline (lint, build, unit tests, integration tests).
+4. If **all checks pass** (zero errors, zero warnings, minimum coverage met): move to the next column.
+5. If **any check fails**: move the card **back to dev** column for fixes. This creates a dev → testing loop until CI passes.

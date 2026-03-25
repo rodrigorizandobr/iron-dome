@@ -2,10 +2,16 @@
 """
 Board Agent — Copilot Coding Agent orchestrator.
 
-Polls the project board and assigns Copilot Coding Agent to issues.
-For each card not in the last column:
-  - If no label → assign Copilot with custom_instructions from .md → add "copilot-working"
-  - If "copilot-working" → check if Copilot finished (PR exists) → move to next column
+Polls the project board every minute. For each card not in the last
+column and without "processing" label:
+  1. Skip if card has "processing" label
+  2. Add "processing" label
+  3. Detect column name (status)
+  4. Find agent at .github/agents/{column}.md
+  5. Execute agent (Copilot for most columns, direct CI for testing)
+  6. If testing: run npm run ci — pass → next column, fail → back to dev
+  7. Remove "processing" label
+  8. Recursively process the new column
 """
 import os
 import sys
@@ -26,6 +32,8 @@ FULL_REPO = f"{OWNER}/{REPO}"
 LABEL_PROCESSING = "processing"
 LABEL_COPILOT = "copilot-working"
 COPILOT_BOT = "copilot-swe-agent[bot]"
+TESTING_COLUMN = "testing"
+DEV_COLUMN = "dev"
 
 
 def gh_gql(query, **variables):
@@ -426,44 +434,187 @@ def read_agent_instructions(column):
     return open(agent_path).read()
 
 
-# ── Main ──────────────────────────────────────────────────
+# ── Testing CI runner ─────────────────────────────────────
 
-def process_new_card(card, board):
-    """Assign Copilot Coding Agent to a new card."""
-    n = card["number"]
-    col = card["column"]
-
-    agent_path = f".github/agents/{col.lower()}.md"
-    instructions = read_agent_instructions(col)
-    if instructions is None:
-        msg = f"⚠️ No agent found for column `{col}` (`{agent_path}`)."
-        print(f"  ⚠️  No agent for '{col}', posting comment and stopping")
-        post_comment(n, msg)
-        return
-
-    label_add(n, LABEL_PROCESSING)
-
-    # Build custom instructions with issue context
-    context = (
-        f"## Issue #{n}: {card['title']}\n\n"
-        f"{card['body']}\n\n"
-        f"---\n\n"
-        f"{instructions}"
+def run_testing_ci(number):
+    """
+    Checkout the feature branch and run npm run ci.
+    Returns (success: bool, output: str).
+    """
+    branch = f"feat/issue-{number}"
+    env = {**os.environ, "GH_TOKEN": GH_TOKEN, "HUSKY": "0", "CI": "true"}
+    run = lambda cmd, **kw: subprocess.run(
+        cmd, capture_output=True, text=True, env=env, **kw,
     )
 
-    ok = assign_copilot(n, context)
-    if ok:
-        label_add(n, LABEL_COPILOT)
-        post_comment(n, f"🤖 Copilot Coding Agent assigned for **{col}** phase.\n\n"
-                        f"Instructions from `.github/agents/{col.lower()}.md` sent.")
-    else:
-        post_comment(n, f"❌ Failed to assign Copilot for **{col}** phase.")
+    # Git setup
+    run(["git", "config", "user.name", "Board Agent"])
+    run(["git", "config", "user.email", "board-agent@iron-dome.local"])
+    run(["git", "fetch", "origin"])
 
-    label_remove(n, LABEL_PROCESSING)
+    # Checkout feature branch
+    checkout = run(["git", "checkout", branch])
+    if checkout.returncode != 0:
+        checkout = run(["git", "checkout", "-b", branch, f"origin/{branch}"])
+        if checkout.returncode != 0:
+            return False, f"Branch `{branch}` not found"
+    else:
+        run(["git", "pull", "origin", branch, "--rebase"])
+
+    # Install deps on feature branch
+    install = run(["npm", "ci"])
+    if install.returncode != 0:
+        run(["git", "checkout", "main", "--force"])
+        stderr = install.stderr.strip()[-1000:]
+        return False, f"npm ci (install) failed:\n```\n{stderr}\n```"
+
+    # Run full CI pipeline
+    ci = run(["npm", "run", "ci"], timeout=600)
+    combined = (ci.stdout + "\n" + ci.stderr).strip()
+
+    # Back to main
+    run(["git", "checkout", "main", "--force"])
+
+    if ci.returncode == 0:
+        return True, "All CI checks passed successfully."
+    else:
+        return False, f"```\n{combined[-2000:]}\n```"
+
+
+# ── Move card to named column ─────────────────────────────
+
+def move_card_to(board, card, target_col):
+    """Move a card to a specific named column. Updates card in-place."""
+    opt = next(
+        (o for o in board["status_field"]["options"] if o["name"] == target_col),
+        None,
+    )
+    if not opt:
+        print(f"  ❌ Column '{target_col}' not found")
+        return False
+
+    mutation = """
+    mutation($p:ID!,$i:ID!,$f:ID!,$o:String!) {
+      updateProjectV2ItemFieldValue(input:{
+        projectId:$p itemId:$i fieldId:$f
+        value:{singleSelectOptionId:$o}
+      }) { projectV2Item { id } }
+    }"""
+    r = gh_gql(
+        mutation,
+        p=board["id"], i=card["item_id"],
+        f=board["status_field"]["id"], o=opt["id"],
+    )
+    ok = r and "errors" not in r
+    if ok:
+        old_col = card["column"]
+        card["column"] = target_col
+        print(f"  {'✅' if ok else '❌'} {old_col} → {target_col}")
+    return ok
+
+
+# ── Main processing ───────────────────────────────────────
+
+def process_card(card, board):
+    """
+    Process a single card through columns recursively.
+    Steps: label → detect column → find agent → execute → move → remove label → loop.
+    """
+    cols = board["columns"]
+    last_col = cols[-1] if cols else "done"
+
+    while True:
+        n = card["number"]
+        col = card["column"]
+
+        # Stop if card reached done or has no column
+        if col is None or col == last_col:
+            print(f"  ℹ️  #{n} reached '{col or last_col}', stopping")
+            break
+
+        print(f"\n{'=' * 50}")
+        print(f"🔄 #{n} — {card['title']} [{col}]")
+
+        # Step 2: Check processing label
+        if LABEL_PROCESSING in card.get("labels", []):
+            print(f"  ⏭️  Already has '{LABEL_PROCESSING}', skipping")
+            break
+
+        # Step 5: Find agent
+        agent_path = f".github/agents/{col.lower()}.md"
+        if not os.path.exists(agent_path):
+            msg = f"⚠️ No agent found for column `{col}` (`{agent_path}`)."
+            print(f"  ⚠️  No agent for '{col}', posting comment and stopping")
+            post_comment(n, msg)
+            break
+
+        # Step 3: Add processing label
+        label_add(n, LABEL_PROCESSING)
+
+        # Step 7: Special testing column — run CI directly
+        if col.lower() == TESTING_COLUMN:
+            handled = handle_testing(card, board)
+            label_remove(n, LABEL_PROCESSING)
+            if not handled:
+                break
+            continue  # Loop for the new column
+
+        # Step 6: Regular columns — assign Copilot Coding Agent
+        instructions = read_agent_instructions(col)
+        context = (
+            f"## Issue #{n}: {card['title']}\n\n"
+            f"{card['body']}\n\n"
+            f"---\n\n"
+            f"{instructions}"
+        )
+
+        ok = assign_copilot(n, context)
+        if ok:
+            label_add(n, LABEL_COPILOT)
+            post_comment(n, f"🤖 Copilot Coding Agent assigned for **{col}** phase.\n\n"
+                            f"Instructions from `{agent_path}` sent.")
+        else:
+            post_comment(n, f"❌ Failed to assign Copilot for **{col}** phase.")
+
+        # Step 8: Remove processing (Copilot works async, we stop here)
+        label_remove(n, LABEL_PROCESSING)
+        break  # Copilot is async — completion detected in next cron run
+
+
+def handle_testing(card, board):
+    """
+    Run npm run ci on the feature branch.
+    Pass → move to next column, return True.
+    Fail → move BACK to dev, return True.
+    Returns False only on critical error.
+    """
+    n = card["number"]
+    print(f"  🧪 Running CI on feat/issue-{n}...")
+
+    success, output = run_testing_ci(n)
+
+    if success:
+        post_comment(n, f"## ✅ Testing Passed — Issue #{n}\n\n{output}")
+        moved = move_next(board, card["item_id"], TESTING_COLUMN)
+        if moved:
+            cols = board["columns"]
+            idx = cols.index(TESTING_COLUMN)
+            card["column"] = cols[idx + 1]
+            print(f"  ➡️  CI passed, card now in '{card['column']}'")
+            return True
+        return False
+    else:
+        post_comment(n, f"## ❌ Testing Failed — Issue #{n}\n\n"
+                        f"CI check failed. Moving back to **{DEV_COLUMN}**.\n\n{output}")
+        moved = move_card_to(board, card, DEV_COLUMN)
+        if moved:
+            print(f"  🔙 CI failed, card moved back to '{DEV_COLUMN}'")
+            return True
+        return False
 
 
 def process_copilot_card(card, board):
-    """Check if Copilot finished and move the card forward."""
+    """Check if Copilot finished and move the card forward, then loop."""
     n = card["number"]
     col = card["column"]
 
@@ -484,14 +635,10 @@ def process_copilot_card(card, board):
         card["labels"] = [l for l in card["labels"] if l != LABEL_COPILOT]
         print(f"  ➡️  Card now in '{next_col}'")
 
-        # Recursively assign Copilot for the next column
-        last_col = cols[-1] if cols else "done"
-        if next_col != last_col:
-            agent_path = f".github/agents/{next_col.lower()}.md"
-            if os.path.exists(agent_path):
-                label_remove(n, LABEL_PROCESSING)
-                process_new_card(card, board)
-                return
+        # Step 9: Recursively process the new column
+        label_remove(n, LABEL_PROCESSING)
+        process_card(card, board)
+        return
 
     label_remove(n, LABEL_PROCESSING)
 
@@ -556,6 +703,8 @@ def main():
     if TARGET_COLUMN and MANUAL_ISSUE:
         move_to_column(board, MANUAL_ISSUE, TARGET_COLUMN)
 
+    processed = False
+
     # Phase 1: Check cards with "copilot-working" label (poll for completion)
     copilot_cards = [
         c for c in board["cards"]
@@ -565,13 +714,14 @@ def main():
         and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
     ]
     if copilot_cards:
+        processed = True
         print(f"\n   🔍 Checking {len(copilot_cards)} Copilot-working card(s)")
         for card in copilot_cards:
             print(f"\n{'=' * 50}")
             print(f"⏳ #{card['number']} — {card['title']} [{card['column']}]")
             process_copilot_card(card, board)
 
-    # Phase 2: New cards to assign to Copilot
+    # Phase 2: New cards to process
     new_cards = [
         c for c in board["cards"]
         if c["column"] is not None
@@ -581,13 +731,12 @@ def main():
         and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
     ]
     if new_cards:
-        print(f"\n   🆕 Assigning Copilot to {len(new_cards)} new card(s)")
+        processed = True
+        print(f"\n   🆕 Processing {len(new_cards)} new card(s)")
         for card in new_cards:
-            print(f"\n{'=' * 50}")
-            print(f"🔄 #{card['number']} — {card['title']} [{card['column']}]")
-            process_new_card(card, board)
+            process_card(card, board)
 
-    if not copilot_cards and not new_cards:
+    if not processed:
         print("ℹ️  No cards to process")
 
     print(f"\n✅ Board Agent finished")
