@@ -52,13 +52,18 @@ export class AuditTrailApiService extends BaseResourceService<
 
   /**
    * Create an audit trail event.
-   * 1. Validates event type is registered
-   * 2. Publishes to SQS for async processing
-   * 3. Returns immediate response with ID
+   * 1. Validates tenantId is present (multi-tenancy requirement)
+   * 2. Validates event type is registered
+   * 3. Publishes to SQS for async processing
+   * 4. Returns immediate response with ID
    */
   async create(
     data: CreateAuditTrailDto & { id?: string; tenantId?: string },
   ): Promise<IAuditTrail> {
+    if (!data.tenantId) {
+      throw new BadRequestException('Tenant isolation requires tenantId');
+    }
+
     const { eventType } = data;
 
     // Validate event type is pre-registered
