@@ -332,26 +332,43 @@ def run_agent(column, number, title, body):
 # ── Main ──────────────────────────────────────────────────
 
 def process(card, board):
-    """Process a single card: label → agent → comment → move → unlabel."""
-    n = card["number"]
-    col = card["column"]
-    print(f"\n{'=' * 50}")
-    print(f"🔄 #{n} — {card['title']} [{col}]")
+    """Process a single card through all columns until done or no agent."""
+    cols = board["columns"]
+    last_col = cols[-1] if cols else "done"
 
-    agent_path = f".github/agents/{col.lower()}.md"
-    if not os.path.exists(agent_path):
-        print(f"  ⏭️  No agent for '{col}', skipping")
-        return
+    while True:
+        n = card["number"]
+        col = card["column"]
 
-    label_add(n)
-    try:
-        result = run_agent(col, n, card["title"], card["body"])
-        if result is None:
-            return
-        post_comment(n, result)
-        move_next(board, card["item_id"], col)
-    finally:
-        label_remove(n)
+        if col is None or col == last_col:
+            print(f"  ℹ️  #{n} reached '{col or last_col}', stopping")
+            break
+
+        print(f"\n{'=' * 50}")
+        print(f"🔄 #{n} — {card['title']} [{col}]")
+
+        agent_path = f".github/agents/{col.lower()}.md"
+        if not os.path.exists(agent_path):
+            msg = f"⚠️ No agent found for column `{col}` (`{agent_path}`)."
+            print(f"  ⚠️  No agent for '{col}', posting comment and stopping")
+            post_comment(n, msg)
+            label_remove(n)
+            break
+
+        label_add(n)
+        try:
+            result = run_agent(col, n, card["title"], card["body"])
+            if result is None:
+                break
+            post_comment(n, result)
+            moved = move_next(board, card["item_id"], col)
+            if not moved:
+                break
+            # Update card column for next iteration
+            idx = cols.index(col)
+            card["column"] = cols[idx + 1]
+        finally:
+            label_remove(n)
 
 
 def move_to_column(board, issue_number, target_col):
