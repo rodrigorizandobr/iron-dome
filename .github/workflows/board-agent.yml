@@ -1,0 +1,40 @@
+name: Board Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number (empty = all pending)'
+        required: false
+        type: string
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PROJECT_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      - name: 🤖 Process board cards
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.repository }}
+          MANUAL_ISSUE: ${{ github.event.inputs.issue_number || '' }}
+        run: python3 .github/scripts/board-agent.py
