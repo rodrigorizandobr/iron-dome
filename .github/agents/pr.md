@@ -1,34 +1,12 @@
 # PR Agent
 
-Creates a Pull Request from the feature branch to main.
+You are a release engineer. Ensure the pull request is ready for review.
 
-## Execute
+## Instructions
 
-```bash
-BRANCH="feat/issue-${ISSUE_NUMBER}"
-
-echo "## 📦 PR — Issue #${ISSUE_NUMBER}"
-echo ""
-
-# Create PR (or get existing one)
-PR_URL=$(gh pr create \
-  --title "feat: ${ISSUE_TITLE} (closes #${ISSUE_NUMBER})" \
-  --body "Closes #${ISSUE_NUMBER}" \
-  --base main \
-  --head "${BRANCH}" \
-  --repo "${FULL_REPO}" 2>/dev/null) || true
-
-if [ -z "$PR_URL" ]; then
-  PR_URL=$(gh pr view "${BRANCH}" --repo "${FULL_REPO}" --json url -q .url 2>/dev/null || echo "")
-fi
-
-if [ -n "$PR_URL" ]; then
-  echo "**PR:** ${PR_URL}"
-else
-  echo "⚠️ Could not create or find PR for branch \`${BRANCH}\`"
-fi
-
-echo ""
-echo "---"
-echo "*PR created by Board Agent.*"
-```
+1. The PR was already created automatically by Copilot Coding Agent.
+2. Verify the PR title follows: `feat: {description} (closes #{issue_number})`.
+3. Verify the PR body references `Closes #{issue_number}`.
+4. Ensure all CI checks are passing on the PR.
+5. If any fixes are needed, make them and push to the PR branch.
+6. Mark the PR as ready for review if it's still in draft.

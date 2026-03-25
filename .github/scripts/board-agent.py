@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
 """
-Board Agent — Generic card processor.
+Board Agent — Copilot Coding Agent orchestrator.
 
-Polls the project board. For each card not in the last column
-and not already labeled "processing":
-  1. Add "processing" label
-  2. Detect column name
-  3. Read .github/agents/{column}.md
-  4. Execute embedded bash script -> capture stdout
-  5. Post stdout as issue comment
-  6. Move card to next column
-  7. Remove "processing" label
+Polls the project board and assigns Copilot Coding Agent to issues.
+For each card not in the last column:
+  - If no label → assign Copilot with custom_instructions from .md → add "copilot-working"
+  - If "copilot-working" → check if Copilot finished (PR exists) → move to next column
 """
 import os
 import sys
 import json
 import subprocess
 import tempfile
-import re
 
 GH_TOKEN = os.environ["GH_TOKEN"]
 PROJECT_NUMBER = int(os.environ["PROJECT_NUMBER"])
@@ -29,7 +23,9 @@ TARGET_COLUMN = os.environ.get("TARGET_COLUMN", "").strip()
 if "/" in REPO:
     REPO = REPO.split("/", 1)[1]
 FULL_REPO = f"{OWNER}/{REPO}"
-LABEL = "processing"
+LABEL_PROCESSING = "processing"
+LABEL_COPILOT = "copilot-working"
+COPILOT_BOT = "copilot-swe-agent[bot]"
 
 
 def gh_gql(query, **variables):
@@ -71,6 +67,7 @@ def get_board():
               ... on Issue {
                 number title body state
                 labels(first: 10) { nodes { name } }
+                assignees(first: 10) { nodes { login } }
               }
             }
           }}
@@ -102,6 +99,7 @@ def get_board():
             if fv.get("field", {}).get("name") == "Status":
                 col = fv.get("name")
         labels = [lb["name"] for lb in c.get("labels", {}).get("nodes", [])]
+        assignees = [a["login"] for a in c.get("assignees", {}).get("nodes", [])]
         cards.append({
             "item_id": item["id"],
             "number": c["number"],
@@ -109,6 +107,7 @@ def get_board():
             "body": c.get("body") or "",
             "column": col,
             "labels": labels,
+            "assignees": assignees,
             "state": c.get("state", "OPEN"),
         })
 
@@ -164,31 +163,32 @@ def add_issue_to_project(board, issue_number):
 
 # ── Label helpers ─────────────────────────────────────────
 
-def label_add(n):
+def label_add(n, label):
     """Create label if missing, then add to issue."""
     env = {**os.environ, "GH_TOKEN": GH_TOKEN}
+    color = "fbca04" if label == LABEL_PROCESSING else "1d76db"
     subprocess.run(
-        ["gh", "label", "create", LABEL,
-         "--color", "fbca04", "--force", "--repo", FULL_REPO],
+        ["gh", "label", "create", label,
+         "--color", color, "--force", "--repo", FULL_REPO],
         capture_output=True, env=env,
     )
     subprocess.run(
         ["gh", "issue", "edit", str(n),
-         "--add-label", LABEL, "--repo", FULL_REPO],
+         "--add-label", label, "--repo", FULL_REPO],
         capture_output=True, env=env,
     )
-    print(f"  🏷️  +{LABEL}")
+    print(f"  🏷️  +{label}")
 
 
-def label_remove(n):
-    """Remove processing label from issue."""
+def label_remove(n, label):
+    """Remove a label from issue."""
     subprocess.run(
         ["gh", "issue", "edit", str(n),
-         "--remove-label", LABEL, "--repo", FULL_REPO],
+         "--remove-label", label, "--repo", FULL_REPO],
         capture_output=True,
         env={**os.environ, "GH_TOKEN": GH_TOKEN},
     )
-    print(f"  🏷️  -{LABEL}")
+    print(f"  🏷️  -{label}")
 
 
 # ── Comment helper ────────────────────────────────────────
@@ -250,125 +250,250 @@ def move_next(board, item_id, current_col):
     return ok
 
 
+# ── Copilot Coding Agent ─────────────────────────────────
+
+def get_copilot_bot_id():
+    """Get the copilot-swe-agent bot ID via suggestedActors query."""
+    data = gh_gql("""query($owner:String!,$repo:String!) {
+      repository(owner:$owner, name:$repo) {
+        suggestedActors(capabilities:[CAN_BE_ASSIGNED], first:100) {
+          nodes { login __typename ... on Bot { id } ... on User { id } }
+        }
+      }
+    }""", owner=OWNER, repo=REPO)
+    if not data:
+        return None
+    nodes = data["data"]["repository"]["suggestedActors"]["nodes"]
+    bot = next((n for n in nodes if n.get("login") == "copilot-swe-agent"), None)
+    return bot["id"] if bot else None
+
+
+def get_repo_id():
+    """Get the repository GraphQL global ID."""
+    data = gh_gql("""query($owner:String!,$repo:String!) {
+      repository(owner:$owner, name:$repo) { id }
+    }""", owner=OWNER, repo=REPO)
+    if not data:
+        return None
+    return data["data"]["repository"]["id"]
+
+
+def get_issue_id(number):
+    """Get the issue GraphQL global ID."""
+    data = gh_gql("""query($owner:String!,$repo:String!,$n:Int!) {
+      repository(owner:$owner, name:$repo) { issue(number:$n) { id } }
+    }""", owner=OWNER, repo=REPO, n=int(number))
+    if not data:
+        return None
+    return data["data"]["repository"]["issue"]["id"]
+
+
+def assign_copilot(number, instructions):
+    """Assign Copilot Coding Agent to an issue with custom instructions."""
+    # Try REST API first (simpler)
+    payload = json.dumps({
+        "assignees": [COPILOT_BOT],
+        "agent_assignment": {
+            "target_repo": FULL_REPO,
+            "base_branch": "main",
+            "custom_instructions": instructions,
+            "custom_agent": "",
+            "model": "",
+        },
+    })
+    r = subprocess.run(
+        ["gh", "api", "--method", "POST",
+         "-H", "Accept: application/vnd.github+json",
+         "-H", "X-GitHub-Api-Version: 2022-11-28",
+         f"/repos/{FULL_REPO}/issues/{number}/assignees",
+         "--input", "-"],
+        input=payload, capture_output=True, text=True,
+        env={**os.environ, "GH_TOKEN": GH_TOKEN},
+    )
+    if r.returncode == 0:
+        print(f"  🤖 Copilot assigned via REST API")
+        return True
+
+    print(f"  ⚠️  REST assign failed: {r.stderr.strip()[:200]}")
+
+    # Fallback: GraphQL
+    bot_id = get_copilot_bot_id()
+    repo_id = get_repo_id()
+    issue_id = get_issue_id(number)
+    if not all([bot_id, repo_id, issue_id]):
+        print(f"  ❌ Could not resolve IDs for GraphQL fallback")
+        return False
+
+    result = gh_gql("""mutation($issue:ID!,$bot:ID!,$repo:ID!,$instructions:String!) {
+      addAssigneesToAssignable(input:{
+        assignableId:$issue
+        assigneeIds:[$bot]
+        agentAssignment:{
+          targetRepositoryId:$repo
+          baseRef:"main"
+          customInstructions:$instructions
+          customAgent:""
+          model:""
+        }
+      }) { assignable { ... on Issue { id } } }
+    }""", issue=issue_id, bot=bot_id, repo=repo_id, instructions=instructions)
+
+    # Note: GraphQL needs special header, try via gh api directly
+    if not result or "errors" in result:
+        # Last resort: comment @copilot mention
+        print(f"  ⚠️  GraphQL fallback failed, posting @copilot comment")
+        post_comment(number, f"@copilot {instructions}")
+        return True
+
+    print(f"  🤖 Copilot assigned via GraphQL")
+    return True
+
+
+def check_copilot_done(number):
+    """Check if Copilot has finished working on an issue (PR exists)."""
+    env = {**os.environ, "GH_TOKEN": GH_TOKEN}
+    branch = f"copilot/fix-{number}"
+
+    # Check for any PR linked to this issue or from copilot branches
+    r = subprocess.run(
+        ["gh", "pr", "list", "--repo", FULL_REPO, "--state", "open",
+         "--json", "number,title,headRefName,author",
+         "--jq", f'[.[] | select(.author.login == "copilot-swe-agent")]'],
+        capture_output=True, text=True, env=env,
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        prs = json.loads(r.stdout)
+        # Find PR that references this issue
+        for pr in prs:
+            title = pr.get("title", "").lower()
+            if f"#{number}" in title or f"issue {number}" in title.lower():
+                print(f"  ✅ Copilot PR found: #{pr['number']} — {pr['title']}")
+                return True
+
+    # Also check if copilot-swe-agent was unassigned (task completed)
+    r2 = subprocess.run(
+        ["gh", "issue", "view", str(number), "--repo", FULL_REPO,
+         "--json", "assignees",
+         "--jq", '[.assignees[].login] | map(select(. == "copilot-swe-agent")) | length'],
+        capture_output=True, text=True, env=env,
+    )
+    if r2.returncode == 0:
+        count = r2.stdout.strip()
+        if count == "0":
+            # Copilot was unassigned (finished or removed)
+            # Check if a PR was merged or exists
+            r3 = subprocess.run(
+                ["gh", "pr", "list", "--repo", FULL_REPO,
+                 "--state", "all", "--json", "number,title,author,state",
+                 "--jq", f'[.[] | select(.author.login == "copilot-swe-agent")]'],
+                capture_output=True, text=True, env=env,
+            )
+            if r3.returncode == 0 and r3.stdout.strip():
+                prs = json.loads(r3.stdout)
+                for pr in prs:
+                    title = pr.get("title", "").lower()
+                    if f"#{number}" in title or f"issue {number}" in title.lower():
+                        print(f"  ✅ Copilot finished (unassigned), PR: #{pr['number']}")
+                        return True
+            # Also treat unassignment as done
+            print(f"  ✅ Copilot unassigned (session finished)")
+            return True
+
+    # Check for recent copilot comments
+    r4 = subprocess.run(
+        ["gh", "issue", "view", str(number), "--repo", FULL_REPO,
+         "--json", "comments",
+         "--jq", '[.comments[] | select(.author.login == "copilot-swe-agent" or .author.login == "copilot-swe-agent[bot]")] | length'],
+        capture_output=True, text=True, env=env,
+    )
+    if r4.returncode == 0:
+        comment_count = r4.stdout.strip()
+        if comment_count and int(comment_count) > 0:
+            print(f"  ✅ Copilot posted {comment_count} comment(s)")
+            return True
+
+    print(f"  ⏳ Copilot still working on #{number}")
+    return False
+
+
 # ── Agent runner ──────────────────────────────────────────
 
-def run_agent(column, number, title, body):
-    """
-    Read .github/agents/{column}.md, extract the ```bash block,
-    execute it, and return stdout as the comment text.
-    """
+def read_agent_instructions(column):
+    """Read the .md agent file and return its content as instructions."""
     agent_path = f".github/agents/{column.lower()}.md"
     if not os.path.exists(agent_path):
-        print(f"  ⚠️  No agent file: {agent_path}")
         return None
-
-    content = open(agent_path).read()
-    match = re.search(r"```bash\n(.*?)```", content, re.DOTALL)
-    if not match:
-        return content  # no script — return the raw markdown
-
-    script = match.group(1)
-    branch = f"feat/issue-{number}"
-
-    # ── git setup ──
-    env_git = {**os.environ, "GH_TOKEN": GH_TOKEN, "HUSKY": "0", "CI": "true"}
-    run = lambda cmd: subprocess.run(cmd, capture_output=True, text=True, env=env_git)
-    run(["git", "config", "user.name", "Board Agent"])
-    run(["git", "config", "user.email", "board-agent@iron-dome.local"])
-    run(["git", "fetch", "origin"])
-
-    # checkout or create branch
-    if run(["git", "checkout", branch]).returncode != 0:
-        run(["git", "checkout", "-b", branch, "origin/main"])
-    else:
-        run(["git", "merge", "origin/main", "--no-edit", "-q"])
-
-    # ── execute script ──
-    script_env = {
-        **os.environ,
-        "ISSUE_NUMBER": str(number),
-        "ISSUE_TITLE": title,
-        "ISSUE_BODY": body,
-        "BRANCH": branch,
-        "FULL_REPO": FULL_REPO,
-        "GH_TOKEN": GH_TOKEN,
-        "HUSKY": "0",
-        "CI": "true",
-    }
-
-    fd, tmp = tempfile.mkstemp(suffix=".sh")
-    with os.fdopen(fd, "w") as f:
-        f.write(f"#!/bin/bash\n{script}")
-    os.chmod(tmp, 0o755)
-
-    try:
-        r = subprocess.run(
-            ["/bin/bash", tmp],
-            capture_output=True, text=True,
-            env=script_env, timeout=300,
-        )
-        output = r.stdout.strip()
-        if r.returncode != 0 and r.stderr.strip():
-            output += f"\n\n⚠️ stderr:\n```\n{r.stderr.strip()[-500:]}\n```"
-    except subprocess.TimeoutExpired:
-        output = "⚠️ Agent timed out (5 min limit)"
-    finally:
-        os.unlink(tmp)
-
-    # ── commit & push any file changes ──
-    run(["git", "add", "-A"])
-    if run(["git", "diff", "--staged", "--quiet"]).returncode != 0:
-        run(["git", "commit", "--no-verify", "-m",
-             f"chore(agent): {column.lower()} for #{number}"])
-        push = run(["git", "push", "origin", branch])
-        if push.returncode != 0:
-            run(["git", "push", "origin", branch, "-u"])
-
-    # back to main
-    run(["git", "checkout", "main", "--force"])
-    return output or f"✅ Agent `{column}` completed."
+    return open(agent_path).read()
 
 
 # ── Main ──────────────────────────────────────────────────
 
-def process(card, board):
-    """Process a single card through all columns until done or no agent."""
-    cols = board["columns"]
-    last_col = cols[-1] if cols else "done"
+def process_new_card(card, board):
+    """Assign Copilot Coding Agent to a new card."""
+    n = card["number"]
+    col = card["column"]
 
-    while True:
-        n = card["number"]
-        col = card["column"]
+    agent_path = f".github/agents/{col.lower()}.md"
+    instructions = read_agent_instructions(col)
+    if instructions is None:
+        msg = f"⚠️ No agent found for column `{col}` (`{agent_path}`)."
+        print(f"  ⚠️  No agent for '{col}', posting comment and stopping")
+        post_comment(n, msg)
+        return
 
-        if col is None or col == last_col:
-            print(f"  ℹ️  #{n} reached '{col or last_col}', stopping")
-            break
+    label_add(n, LABEL_PROCESSING)
 
-        print(f"\n{'=' * 50}")
-        print(f"🔄 #{n} — {card['title']} [{col}]")
+    # Build custom instructions with issue context
+    context = (
+        f"## Issue #{n}: {card['title']}\n\n"
+        f"{card['body']}\n\n"
+        f"---\n\n"
+        f"{instructions}"
+    )
 
-        agent_path = f".github/agents/{col.lower()}.md"
-        if not os.path.exists(agent_path):
-            msg = f"⚠️ No agent found for column `{col}` (`{agent_path}`)."
-            print(f"  ⚠️  No agent for '{col}', posting comment and stopping")
-            post_comment(n, msg)
-            label_remove(n)
-            break
+    ok = assign_copilot(n, context)
+    if ok:
+        label_add(n, LABEL_COPILOT)
+        post_comment(n, f"🤖 Copilot Coding Agent assigned for **{col}** phase.\n\n"
+                        f"Instructions from `.github/agents/{col.lower()}.md` sent.")
+    else:
+        post_comment(n, f"❌ Failed to assign Copilot for **{col}** phase.")
 
-        label_add(n)
-        try:
-            result = run_agent(col, n, card["title"], card["body"])
-            if result is None:
-                break
-            post_comment(n, result)
-            moved = move_next(board, card["item_id"], col)
-            if not moved:
-                break
-            # Update card column for next iteration
-            idx = cols.index(col)
-            card["column"] = cols[idx + 1]
-        finally:
-            label_remove(n)
+    label_remove(n, LABEL_PROCESSING)
+
+
+def process_copilot_card(card, board):
+    """Check if Copilot finished and move the card forward."""
+    n = card["number"]
+    col = card["column"]
+
+    if not check_copilot_done(n):
+        return  # Still working
+
+    label_add(n, LABEL_PROCESSING)
+    label_remove(n, LABEL_COPILOT)
+
+    post_comment(n, f"✅ Copilot completed **{col}** phase. Moving to next column.")
+    moved = move_next(board, card["item_id"], col)
+
+    if moved:
+        cols = board["columns"]
+        idx = cols.index(col)
+        next_col = cols[idx + 1]
+        card["column"] = next_col
+        card["labels"] = [l for l in card["labels"] if l != LABEL_COPILOT]
+        print(f"  ➡️  Card now in '{next_col}'")
+
+        # Recursively assign Copilot for the next column
+        last_col = cols[-1] if cols else "done"
+        if next_col != last_col:
+            agent_path = f".github/agents/{next_col.lower()}.md"
+            if os.path.exists(agent_path):
+                label_remove(n, LABEL_PROCESSING)
+                process_new_card(card, board)
+                return
+
+    label_remove(n, LABEL_PROCESSING)
 
 
 def move_to_column(board, issue_number, target_col):
@@ -409,7 +534,7 @@ def move_to_column(board, issue_number, target_col):
 
 
 def main():
-    print("🤖 Board Agent")
+    print("🤖 Board Agent (Copilot Coding Agent mode)")
     print(f"   {FULL_REPO} — Project #{PROJECT_NUMBER}")
 
     board = get_board()
@@ -431,22 +556,39 @@ def main():
     if TARGET_COLUMN and MANUAL_ISSUE:
         move_to_column(board, MANUAL_ISSUE, TARGET_COLUMN)
 
-    pending = [
+    # Phase 1: Check cards with "copilot-working" label (poll for completion)
+    copilot_cards = [
         c for c in board["cards"]
         if c["column"] is not None
         and c["column"] != last_col
-        and LABEL not in c["labels"]
+        and LABEL_COPILOT in c["labels"]
         and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
     ]
+    if copilot_cards:
+        print(f"\n   🔍 Checking {len(copilot_cards)} Copilot-working card(s)")
+        for card in copilot_cards:
+            print(f"\n{'=' * 50}")
+            print(f"⏳ #{card['number']} — {card['title']} [{card['column']}]")
+            process_copilot_card(card, board)
 
-    if not pending:
+    # Phase 2: New cards to assign to Copilot
+    new_cards = [
+        c for c in board["cards"]
+        if c["column"] is not None
+        and c["column"] != last_col
+        and LABEL_COPILOT not in c["labels"]
+        and LABEL_PROCESSING not in c["labels"]
+        and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
+    ]
+    if new_cards:
+        print(f"\n   🆕 Assigning Copilot to {len(new_cards)} new card(s)")
+        for card in new_cards:
+            print(f"\n{'=' * 50}")
+            print(f"🔄 #{card['number']} — {card['title']} [{card['column']}]")
+            process_new_card(card, board)
+
+    if not copilot_cards and not new_cards:
         print("ℹ️  No cards to process")
-        return
-
-    print(f"   Pending: {len(pending)} card(s)")
-
-    for card in pending:
-        process(card, board)
 
     print(f"\n✅ Board Agent finished")
 

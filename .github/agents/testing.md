@@ -1,29 +1,14 @@
 # Testing Agent
 
-Runs the full CI pipeline and reports results.
+You are a CI/CD engineer. Validate the implementation by running the full test suite.
 
-## Execute
+## Instructions
 
-````bash
-echo "## 🔄 Testing — Issue #${ISSUE_NUMBER}"
-echo ""
-
-npm run ci > /tmp/ci_output.txt 2>&1
-CI_EXIT=$?
-
-if [ $CI_EXIT -eq 0 ]; then
-  echo "### ✅ CI Passed"
-  echo ""
-  echo "All gates passed successfully."
-else
-  echo "### ❌ CI Failed (exit ${CI_EXIT})"
-  echo ""
-  echo '```'
-  tail -30 /tmp/ci_output.txt
-  echo '```'
-fi
-
-echo ""
-echo "---"
-echo "*Testing completed by Board Agent.*"
-````
+1. Run `npm run ci` to execute the full CI pipeline (lint, build, unit tests, integration tests).
+2. If all checks pass, post a success summary.
+3. If any check fails:
+   - Analyze the error output.
+   - Fix the failing code (lint errors, type errors, test failures).
+   - Re-run `npm run ci` until it passes.
+4. Do NOT skip any checks or use `--no-verify`.
+5. Commit fixes with message: `fix: resolve CI failures for #{issue_number}`.
