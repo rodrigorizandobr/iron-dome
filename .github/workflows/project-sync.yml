@@ -14,7 +14,7 @@ name: Project Board Sync
 #     scope and store it as GH_TOKEN secret (or a separate PROJECT_TOKEN secret).
 on:
   schedule:
-    - cron: '* * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
       GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
       PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
       OWNER: ${{ github.repository_owner }}
-      REPO: ${{ github.event.repository.name }}
+      REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 

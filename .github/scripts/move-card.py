@@ -22,8 +22,8 @@ if not all([token, project_number, owner, issue, target_col]):
         "GH_TOKEN": token, "PROJECT_NUMBER": project_number,
         "OWNER": owner, "ISSUE": issue, "TARGET_COLUMN": target_col
     }.items() if not v]
-    print(f"Skipping card move: missing env vars {missing}")
-    sys.exit(0)
+    print(f"ERROR: Missing env vars {missing}")
+    sys.exit(1)
 
 
 def gql(query, variables=None):
@@ -65,16 +65,18 @@ MUTATION = (
 data = gql(QUERY, {"owner": owner, "number": int(project_number)})
 p = (data.get("data", {}).get("repositoryOwner", {}) or {}).get("projectV2")
 if not p:
-    print(f"Project #{project_number} not found for owner '{owner}'. Check PROJECT_NUMBER and token scopes.")
-    sys.exit(0)
+    print(f"ERROR: Project #{project_number} not found for owner '{owner}'. Check PROJECT_NUMBER and token scopes.")
+    print(f"GraphQL response: {json.dumps(data, indent=2)[:500]}")
+    sys.exit(1)
 
 status_field = next(
     (f for f in p["fields"]["nodes"] if f.get("name", "").lower() == "status"),
     None
 )
 if not status_field:
-    print("Status field not found in project.")
-    sys.exit(0)
+    print("ERROR: Status field not found in project.")
+    print(f"Available fields: {[f.get('name','?') for f in p['fields']['nodes']]}")
+    sys.exit(1)
 
 target_option = next(
     (o for o in status_field["options"] if o["name"].lower() == target_col.lower()),
@@ -82,8 +84,8 @@ target_option = next(
 )
 if not target_option:
     opts = [o["name"] for o in status_field["options"]]
-    print(f"Column '{target_col}' not found. Available columns: {opts}")
-    sys.exit(0)
+    print(f"ERROR: Column '{target_col}' not found. Available columns: {opts}")
+    sys.exit(1)
 
 item = next(
     (i for i in p["items"]["nodes"]
@@ -91,14 +93,16 @@ item = next(
     None
 )
 if not item:
-    print(f"Issue #{issue} not found in project.")
-    sys.exit(0)
+    print(f"ERROR: Issue #{issue} not found in project #{project_number}.")
+    print(f"Available items: {[((i.get('content') or {}).get('number')) for i in p['items']['nodes']]}")
+    sys.exit(1)
 
 result = gql(MUTATION, {
     "p": p["id"], "i": item["id"],
     "f": status_field["id"], "v": target_option["id"]
 })
 if result.get("errors"):
-    print(f"Error moving card: {result['errors']}")
+    print(f"ERROR moving card: {result['errors']}")
+    sys.exit(1)
 else:
-    print(f"Issue #{issue} moved to column '{target_option['name']}'")
+    print(f"✅ Issue #{issue} moved to column '{target_option['name']}'" )
