@@ -11,8 +11,12 @@ on:
         description: 'Move card to this column before processing (e.g. refinement)'
         required: false
         type: string
+  issues:
+    types: [opened]
+  projects_v2_item:
+    types: [created, edited]
   schedule:
-    - cron: '* * * * *'
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
