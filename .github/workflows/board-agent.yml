@@ -7,6 +7,10 @@ on:
         description: 'Issue number (empty = all pending)'
         required: false
         type: string
+      target_column:
+        description: 'Move card to this column before processing (e.g. refinement)'
+        required: false
+        type: string
   schedule:
     - cron: '*/5 * * * *'
 
@@ -37,4 +41,5 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.repository }}
           MANUAL_ISSUE: ${{ github.event.inputs.issue_number || '' }}
+          TARGET_COLUMN: ${{ github.event.inputs.target_column || '' }}
         run: python3 .github/scripts/board-agent.py

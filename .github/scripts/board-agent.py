@@ -24,6 +24,7 @@ PROJECT_NUMBER = int(os.environ["PROJECT_NUMBER"])
 OWNER = os.environ["OWNER"]
 REPO = os.environ["REPO"]
 MANUAL_ISSUE = os.environ.get("MANUAL_ISSUE", "").strip()
+TARGET_COLUMN = os.environ.get("TARGET_COLUMN", "").strip()
 
 if "/" in REPO:
     REPO = REPO.split("/", 1)[1]
@@ -311,6 +312,43 @@ def process(card, board):
         label_remove(n)
 
 
+def move_to_column(board, issue_number, target_col):
+    """Move a card to a specific column (used for manual override)."""
+    card = next(
+        (c for c in board["cards"] if str(c["number"]) == issue_number),
+        None,
+    )
+    if not card:
+        print(f"  ❌ Issue #{issue_number} not found on board")
+        return False
+
+    opt = next(
+        (o for o in board["status_field"]["options"] if o["name"] == target_col),
+        None,
+    )
+    if not opt:
+        print(f"  ❌ Column '{target_col}' not found")
+        return False
+
+    mutation = """
+    mutation($p:ID!,$i:ID!,$f:ID!,$o:String!) {
+      updateProjectV2ItemFieldValue(input:{
+        projectId:$p itemId:$i fieldId:$f
+        value:{singleSelectOptionId:$o}
+      }) { projectV2Item { id } }
+    }"""
+    r = gh_gql(
+        mutation,
+        p=board["id"], i=card["item_id"],
+        f=board["status_field"]["id"], o=opt["id"],
+    )
+    ok = r and "errors" not in r
+    if ok:
+        card["column"] = target_col
+        print(f"  📌 Moved #{issue_number} → {target_col}")
+    return ok
+
+
 def main():
     print("🤖 Board Agent")
     print(f"   {FULL_REPO} — Project #{PROJECT_NUMBER}")
@@ -323,6 +361,10 @@ def main():
     cols = board["columns"]
     last_col = cols[-1] if cols else "Done"
     print(f"   Columns: {' → '.join(cols)}")
+
+    # Optional: move card to a specific column before processing
+    if TARGET_COLUMN and MANUAL_ISSUE:
+        move_to_column(board, MANUAL_ISSUE, TARGET_COLUMN)
 
     pending = [
         c for c in board["cards"]
