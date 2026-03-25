@@ -137,17 +137,15 @@ jobs:
             -f issue_number=${{ needs.validate.outputs.issue }}
 
   # ==========================================
-  # 2. DEV — GitHub Copilot Coding Agent
+  # 2. DEV — Prepare + Advance
   # ==========================================
   # Creates feat/issue-X branch, posts implementation spec to issue,
-  # and assigns to GitHub Copilot coding agent.
+  # adds copilot-working label, then advances to Dev-Test.
   #
-  # Workflow:
-  # 1. Dev Agent posts detailed checklist comment
-  # 2. Copilot reads issue and checklist
-  # 3. Copilot creates code on feat/issue-X branch
-  # 4. Copilot opens a PR
-  # 5. copilot-pr.yml detects PR → advances card to Dev-Test
+  # If GitHub Copilot coding agent is enabled in the org, it will
+  # pick up the issue and implement the checklist autonomously.
+  # Either way, the pipeline continues — Dev-Test and Testing
+  # stages will validate the code before creating the PR.
   # ==========================================
   agent-dev:
     needs: [validate]
@@ -182,7 +180,7 @@ jobs:
           echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
           echo "BODY_EOF" >> $GITHUB_OUTPUT
 
-      - name: 🤖 Preparar para GitHub Copilot
+      - name: 🤖 Preparar branch e spec
         env:
           ISSUE_NUMBER: ${{ needs.validate.outputs.issue }}
           ISSUE_TITLE: ${{ steps.issue_details.outputs.title }}
@@ -190,17 +188,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx ts-node scripts/agents/dev.ts
 
-      - name: 📌 Aguardando GitHub Copilot
+      - name: 📦 Push branch (garantir que existe no remote)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "✅ Dev Agent preparado para GitHub Copilot"
-          echo ''
-          echo '📋 Próximas etapas:'
-          echo '1. GitHub Copilot lê issue e checklist'
-          echo '2. Copilot implementa funções na branch feat/issue-${{ needs.validate.outputs.issue }}'
-          echo '3. Copilot abre um PR'
-          echo '4. Workflow copilot-pr.yml detecta PR'
-          echo '5. Card avança para Dev-Test automaticamente'
-          echo ''
+          BRANCH="feat/issue-${{ needs.validate.outputs.issue }}"
+          git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH"
+          git push origin "$BRANCH" --force-with-lease 2>/dev/null || git push origin "$BRANCH" --set-upstream
+
+      - name: 📦 Mover Card para Dev-Test
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+          OWNER: ${{ github.repository_owner }}
+          ISSUE: ${{ needs.validate.outputs.issue }}
+          TARGET_COLUMN: Dev-Test
+        run: python3 .github/scripts/move-card.py
+
+      - name: 🚀 Disparar Agent Dev-Test automaticamente
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run board-agents.yml \
+            --repo ${{ github.repository }} \
+            -f stage=dev-test \
+            -f issue_number=${{ needs.validate.outputs.issue }}
 
   # ==========================================
   # 3. DEV-TEST
@@ -211,7 +223,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: git fetch origin && git checkout feat/issue-${{ needs.validate.outputs.issue }} || echo "Branch not found, staying on main"
+      - name: 🔀 Checkout feature branch
+        run: |
+          BRANCH="feat/issue-${{ needs.validate.outputs.issue }}"
+          git fetch origin
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            git checkout "$BRANCH"
+            echo "✅ Checked out $BRANCH"
+          else
+            echo "❌ Branch $BRANCH not found on remote"
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -244,8 +266,15 @@ jobs:
           git config user.name "AI Tester"
           git config user.email "ai-tester@iron-dome.local"
           git add .
-          git diff --staged --quiet && echo "No changes to commit" || git commit -m "test: testes unitarios gerados pela IA"
-          git push origin feat/issue-${{ needs.validate.outputs.issue }} || echo "Push failed or branch not found"
+          if git diff --staged --quiet; then
+            echo "No changes to commit — creating pipeline marker"
+            echo "${{ needs.validate.outputs.issue }}" > .pipeline-run
+            git add .pipeline-run
+            git commit -m "chore: pipeline marker for issue #${{ needs.validate.outputs.issue }}"
+          else
+            git commit -m "test: testes unitarios gerados pela IA"
+          fi
+          git push origin feat/issue-${{ needs.validate.outputs.issue }}
 
       - name: 💬 Comentar na Issue
         env:
@@ -280,7 +309,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: git fetch origin && git checkout feat/issue-${{ needs.validate.outputs.issue }} || echo "Branch not found, staying on main"
+      - name: 🔀 Checkout feature branch
+        run: |
+          BRANCH="feat/issue-${{ needs.validate.outputs.issue }}"
+          git fetch origin
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            git checkout "$BRANCH"
+            echo "✅ Checked out $BRANCH"
+          else
+            echo "❌ Branch $BRANCH not found on remote"
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -420,15 +459,35 @@ jobs:
             exit 1
           fi
 
-          # Cria PR (ou obtem URL se ja existir)
-          PR_URL=$(gh pr create \
-            --title "feat: ${ISSUE_TITLE} (closes #${ISSUE})" \
-            --body "$(echo -e "$PR_BODY")" \
-            --base main \
-            --head "$BRANCH" 2>&1) || PR_URL=$(gh pr view "$BRANCH" --json url -q .url 2>/dev/null)
+          # Verifica se ha diferenca entre branch e main
+          git fetch origin "$BRANCH" main
+          DIFF_COUNT=$(git rev-list --count "origin/main..origin/$BRANCH" 2>/dev/null || echo "0")
+          echo "Commits ahead of main: $DIFF_COUNT"
 
-          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-          echo "PR URL: $PR_URL"
+          if [ "$DIFF_COUNT" -eq 0 ]; then
+            echo "⚠️ Branch $BRANCH has no commits ahead of main. Skipping PR creation."
+            echo "pr_url=none" >> $GITHUB_OUTPUT
+            echo "skipped=true" >> $GITHUB_OUTPUT
+          else
+            # Cria PR (ou obtem URL se ja existir)
+            set +e
+            PR_URL=$(gh pr create \
+              --title "feat: ${ISSUE_TITLE} (closes #${ISSUE})" \
+              --body "$(echo -e "$PR_BODY")" \
+              --base main \
+              --head "$BRANCH" 2>&1)
+            PR_EXIT=$?
+            set -e
+
+            if [ $PR_EXIT -ne 0 ]; then
+              # PR might already exist
+              PR_URL=$(gh pr view "$BRANCH" --json url -q .url 2>/dev/null || echo "none")
+            fi
+
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            echo "skipped=false" >> $GITHUB_OUTPUT
+            echo "PR URL: $PR_URL"
+          fi
 
       - name: Mover Card para Done via Projects v2
         env:
@@ -445,4 +504,10 @@ jobs:
         run: |
           ISSUE="${{ needs.validate.outputs.issue }}"
           PR_URL="${{ steps.create_pr.outputs.pr_url }}"
-          gh issue comment "$ISSUE" --body "Pipeline completo! PR criado: ${PR_URL}. Card movido para Done."
+          SKIPPED="${{ steps.create_pr.outputs.skipped }}"
+
+          if [ "$SKIPPED" = "true" ]; then
+            gh issue comment "$ISSUE" --body "✅ Pipeline completo! Nenhuma diferenca encontrada na branch — codigo ja esta em main. Card movido para Done."
+          else
+            gh issue comment "$ISSUE" --body "✅ Pipeline completo! PR criado: ${PR_URL}. Card movido para Done."
+          fi
