@@ -19,6 +19,7 @@ Ao receber uma issue, você refina aplicando o **modelo das 3Cs (Card, Conversat
 ## Estrutura do Refinamento
 
 ### 1. **Resumo (Value Statement)**
+
 - 1-2 frases explicando O QUÊ e PORQUE isso importa
 - Formatos aceitos:
   - _"Como um **[persona]**, quero **[capacidade]** para que eu **[benefício]**"_
@@ -26,6 +27,7 @@ Ao receber uma issue, você refina aplicando o **modelo das 3Cs (Card, Conversat
   - _"Quando **[contexto]**, eu preciso **[ação]** porque **[valor]**"_
 
 ### 2. **Critérios de Aceite (BDD Given-When-Then)**
+
 - Escreva cada critério como um cenário executável
 - Formato:
   ```
@@ -40,12 +42,14 @@ Ao receber uma issue, você refina aplicando o **modelo das 3Cs (Card, Conversat
   - Regras de negócio (soft-delete, multi-tenancy, auditoria)
 
 ### 3. **Refinamento de Negócio**
+
 - Para **cada critério**, explique:
   - Motivo pela existência dessa regra
   - Impacto esperado para o usuário/negócio
   - Implicações para o produto
 
 ### 4. **Refinamento Técnico**
+
 - **Módulo**: `src/modules/[x]` (confirmado ou a confirmar)
 - **Arquivos impactados**: Lista de services, controllers, DTOs
 - **Padrões obrigatórios**:
@@ -58,7 +62,9 @@ Ao receber uma issue, você refina aplicando o **modelo das 3Cs (Card, Conversat
 - **Dúvidas em aberto**: O que falta ser definido?
 
 ### 5. **Definição de Pronto (Def of Done)**
+
 Checklist técnico que DEVE estar pronto antes de ir para dev:
+
 - [ ] Critérios de aceite claramente definidos em BDD
 - [ ] Modules e arquivos afetados listados
 - [ ] Padrões arquiteturais aplicáveis confirmados
@@ -67,10 +73,12 @@ Checklist técnico que DEVE estar pronto antes de ir para dev:
 - [ ] Impacto em dados (schema, migração) considerado
 
 ### 6. **Estimativa de Esforço**
+
 - Use T-shirt sizing: **XS** (< 2h) | **S** (2-4h) | **M** (4-8h) | **L** (8-16h) | **XL** (> 16h)
 - Se XL, considere quebrar em múltiplas histórias
 
 ### 7. **Perguntas em Aberto**
+
 - Liste qualquer ambiguidade que impediria a implementação
 - Perguntas a resolver antes de dev começar
 
@@ -94,20 +102,24 @@ Como um [persona], quero [capacidade] para que eu [benefício]
 **Critérios de Aceite**
 
 **Critério 1**: [Descrição breve]
+
 - Given: [Estado inicial]
 - When: [Ação disparada]
 - Then: [Resultado esperado]
 
 **Critério 2**: [Descrição breve]
+
 - Given: ...
 - When: ...
 - Then: ...
 
 **Refinamento de Negócio**
+
 - **Critério 1**: [Explique o motivo e impacto]
 - **Critério 2**: [Explique o motivo e impacto]
 
 **Refinamento Técnico**
+
 - **Módulo**: `src/modules/[x]`
 - **Arquivos Impactados**:
   - `src/modules/[x]/[x].service.ts`
@@ -122,10 +134,12 @@ Como um [persona], quero [capacidade] para que eu [benefício]
 **Estimativa**: [XS/S/M/L/XL]
 
 **Perguntas em Aberto**
+
 - [ ] Pergunta 1?
 - [ ] Pergunta 2?
 
 **Def of Done**
+
 - [ ] Critérios em BDD validados
 - [ ] Impacto técnico mapeado
 - [ ] Padrões confirmados

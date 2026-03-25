@@ -29,6 +29,7 @@ gh pr create \
 ```
 
 **Descrição do PR**:
+
 ```
 Closes #[N]
 
@@ -68,4 +69,3 @@ Pipeline completo! PR criado: [URL do PR]. Card movido para done.
 - Usar `Closes #[N]` no corpo do PR para auto-fechar a issue no merge
 - Se o PR já existir, obter a URL com `gh pr view feat/issue-[N] --json url -q .url`
 - Se `PROJECT_NUMBER` não estiver configurado, pular a movimentação do card e registrar aviso no log
-

@@ -31,14 +31,14 @@ Ao receber a issue:
 
 O comando `npm run ci` executa os seguintes gates em ordem. **Todos são obrigatórios**:
 
-| # | Gate | Comando | Critério |
-|---|------|---------|----------|
-| 1 | Security Audit (prod) | `npm audit --audit-level=high --omit=dev` | 0 vulnerabilidades high/critical |
-| 2 | Prettier | `npm run format -- --check` | 0 arquivos mal formatados |
-| 3 | ESLint | `npm run lint` | 0 errors, 0 warnings |
-| 4 | Build | `npm run build` | TypeScript compila sem erros |
-| 5 | Unit Tests + Coverage | `npm run test:unit -- --coverage` | Todos passam + thresholds atingidos |
-| 6 | Integration Tests | `npm run test:integrated` | Todos passam (mocks, sem LocalStack) |
+| #   | Gate                  | Comando                                   | Critério                             |
+| --- | --------------------- | ----------------------------------------- | ------------------------------------ |
+| 1   | Security Audit (prod) | `npm audit --audit-level=high --omit=dev` | 0 vulnerabilidades high/critical     |
+| 2   | Prettier              | `npm run format -- --check`               | 0 arquivos mal formatados            |
+| 3   | ESLint                | `npm run lint`                            | 0 errors, 0 warnings                 |
+| 4   | Build                 | `npm run build`                           | TypeScript compila sem erros         |
+| 5   | Unit Tests + Coverage | `npm run test:unit -- --coverage`         | Todos passam + thresholds atingidos  |
+| 6   | Integration Tests     | `npm run test:integrated`                 | Todos passam (mocks, sem LocalStack) |
 
 ---
 
@@ -49,12 +49,14 @@ O comando `npm run ci` executa os seguintes gates em ordem. **Todos são obrigat
 ### Cobertura Mínima por Arquivo de Service
 
 Para cada `[entity].service.ts` novo:
+
 - **statements**: ≥ 84%
 - **lines**: ≥ 84%
 - **branches**: 100%
 - **functions**: ≥ 75%
 
 Adicionar entrada em `jest-unit.json > coverageThreshold`:
+
 ```json
 "./src/modules/[entity]/[entity].service.ts": {
   "branches": 100,
@@ -163,18 +165,18 @@ await app.init();
 
 Antes de rodar o CI, revisar o código do Dev Agent contra:
 
-| # | Vulnerabilidade | O Que Verificar |
-|---|-----------------|-----------------|
-| 1 | Broken Access Control | Toda rota tem JWT? Rotas públicas têm `@Public()`? `tenantId` está na PK? |
-| 2 | Cryptographic Failures | Senhas/tokens estão em Secrets Manager? Nada sensível no código? |
-| 3 | Injection | Inputs de usuário sanitizados por `ValidationPipe`? Sem concatenação de strings em queries? |
-| 4 | Insecure Design | `tenantId` obrigatório em `create()`? Soft-delete em vez de hard-delete? |
-| 5 | Security Misconfiguration | CORS via `CORS_ORIGINS` env var? Rate limiting ativo? |
-| 6 | Vulnerable Components | `npm audit` sem high/critical? |
-| 7 | Auth Failures | JWT secret via `JWT_SECRET` env var? Expiração configurada? |
-| 8 | Data Integrity | Eventos SNS são fire-and-forget? Sem race conditions? |
-| 9 | Logging Failures | `ObfuscationService.obfuscate()` antes de logar objetos com dados sensíveis? |
-| 10 | SSRF | Nenhuma URL externa hardcoded? Endpoints da AWS via SDK, nunca HTTP direto? |
+| #   | Vulnerabilidade           | O Que Verificar                                                                             |
+| --- | ------------------------- | ------------------------------------------------------------------------------------------- |
+| 1   | Broken Access Control     | Toda rota tem JWT? Rotas públicas têm `@Public()`? `tenantId` está na PK?                   |
+| 2   | Cryptographic Failures    | Senhas/tokens estão em Secrets Manager? Nada sensível no código?                            |
+| 3   | Injection                 | Inputs de usuário sanitizados por `ValidationPipe`? Sem concatenação de strings em queries? |
+| 4   | Insecure Design           | `tenantId` obrigatório em `create()`? Soft-delete em vez de hard-delete?                    |
+| 5   | Security Misconfiguration | CORS via `CORS_ORIGINS` env var? Rate limiting ativo?                                       |
+| 6   | Vulnerable Components     | `npm audit` sem high/critical?                                                              |
+| 7   | Auth Failures             | JWT secret via `JWT_SECRET` env var? Expiração configurada?                                 |
+| 8   | Data Integrity            | Eventos SNS são fire-and-forget? Sem race conditions?                                       |
+| 9   | Logging Failures          | `ObfuscationService.obfuscate()` antes de logar objetos com dados sensíveis?                |
+| 10  | SSRF                      | Nenhuma URL externa hardcoded? Endpoints da AWS via SDK, nunca HTTP direto?                 |
 
 ---
 

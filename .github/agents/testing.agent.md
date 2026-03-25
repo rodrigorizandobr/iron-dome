@@ -37,14 +37,14 @@ Você é o **QA Gatekeeper** do Iron Dome. Sua única missão é **rodar o `npm 
 
 ## 🚨 Gates do CI — Todos Obrigatórios
 
-| # | Gate | Critério de Falha |
-|---|------|-------------------|
-| 1 | Security Audit (prod) | Qualquer vulnerabilidade high/critical |
-| 2 | Prettier | Qualquer arquivo mal formatado |
-| 3 | ESLint | Qualquer error ou warning configurado |
-| 4 | Build | Qualquer erro TypeScript de compilação |
-| 5 | Unit Tests + Coverage | Qualquer teste falhando ou threshold abaixo do mínimo |
-| 6 | Integration Tests | Qualquer teste falhando (mocks, sem LocalStack) |
+| #   | Gate                  | Critério de Falha                                     |
+| --- | --------------------- | ----------------------------------------------------- |
+| 1   | Security Audit (prod) | Qualquer vulnerabilidade high/critical                |
+| 2   | Prettier              | Qualquer arquivo mal formatado                        |
+| 3   | ESLint                | Qualquer error ou warning configurado                 |
+| 4   | Build                 | Qualquer erro TypeScript de compilação                |
+| 5   | Unit Tests + Coverage | Qualquer teste falhando ou threshold abaixo do mínimo |
+| 6   | Integration Tests     | Qualquer teste falhando (mocks, sem LocalStack)       |
 
 ---
 
@@ -52,14 +52,14 @@ Você é o **QA Gatekeeper** do Iron Dome. Sua única missão é **rodar o `npm 
 
 Use para enriquecer o comentário de retorno:
 
-| Padrão no log | Diagnóstico |
-|---------------|-------------|
-| `no-unsafe-member-access`, `no-unsafe-call` | ESLint: falta cast de tipo ou `import { jest } from '@jest/globals'` |
-| `removeUndefinedValues`, `is not a function` | Mock incompleto: método faltando no `DynamoDBProvider` ou `SNSProvider` |
-| `mockResolvedValue`, `Type.*never` | ESM: trocar `mockResolvedValue` por `mockImplementation(() => Promise.resolve(...))` |
-| `coverageThreshold`, `Coverage` | Cobertura insuficiente: branch ou função não testada |
-| `error TS`, `Cannot find`, `Module not found` | TypeScript: erro de compilação, verificar imports |
-| `vulnerabilit` | Security Audit: atualizar dependência afetada |
+| Padrão no log                                 | Diagnóstico                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `no-unsafe-member-access`, `no-unsafe-call`   | ESLint: falta cast de tipo ou `import { jest } from '@jest/globals'`                 |
+| `removeUndefinedValues`, `is not a function`  | Mock incompleto: método faltando no `DynamoDBProvider` ou `SNSProvider`              |
+| `mockResolvedValue`, `Type.*never`            | ESM: trocar `mockResolvedValue` por `mockImplementation(() => Promise.resolve(...))` |
+| `coverageThreshold`, `Coverage`               | Cobertura insuficiente: branch ou função não testada                                 |
+| `error TS`, `Cannot find`, `Module not found` | TypeScript: erro de compilação, verificar imports                                    |
+| `vulnerabilit`                                | Security Audit: atualizar dependência afetada                                        |
 
 ---
 
@@ -94,14 +94,17 @@ Retornando para Dev Agent. Execute o workflow com stage=dev e issue=[N].
 
 **Branch**: `feat/issue-[N]`
 
-| Gate | Status |
-|------|--------|
-| Security Audit (prod) | ✅ 0 vulnerabilidades |
-| Prettier | ✅ Formatado |
-| ESLint | ✅ 0 erros |
-| Build | ✅ Compilado |
-| Unit Tests | ✅ [X]/[X] — [Y]% coverage |
-| Integration Tests | ✅ [X]/[X] |
+| Gate                  | Status                     |
+| --------------------- | -------------------------- |
+| Security Audit (prod) | ✅ 0 vulnerabilidades      |
+| Prettier              | ✅ Formatado               |
+| ESLint                | ✅ 0 erros                 |
+| Build                 | ✅ Compilado               |
+| Unit Tests            | ✅ [X]/[X] — [Y]% coverage |
+| Integration Tests     | ✅ [X]/[X]                 |
 
 > 🚀 Execute o workflow com `stage=pr` para criar o Pull Request.
+
+```
+
 ```

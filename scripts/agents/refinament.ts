@@ -24,7 +24,7 @@ async function getIssueDetails(issueNum: string) {
   try {
     const { stdout } = await execAsync(
       `gh issue view ${issueNum} --json title,body --jq '.title + "\\n---\\n" + (.body // "sem descricao")'`,
-      { env: { ...process.env, GH_TOKEN: ghToken } }
+      { env: { ...process.env, GH_TOKEN: ghToken } },
     );
     const parts = stdout.trim().split('\n---\n');
     return { title: parts[0] || 'Unknown', body: parts.slice(1).join('\n---\n') || '' };
@@ -44,10 +44,10 @@ async function postRefinementComment(issueNum: string, refinement: string) {
     const tmpFile = `/tmp/refinement_${issueNum}_${Date.now()}.md`;
     fs.writeFileSync(tmpFile, refinement);
 
-    const { stdout } = await execAsync(
-      `gh issue comment ${issueNum} --body-file "${tmpFile}"`,
-      { env: { ...process.env, GH_TOKEN: ghToken }, maxBuffer: 10 * 1024 * 1024 }
-    );
+    const { stdout } = await execAsync(`gh issue comment ${issueNum} --body-file "${tmpFile}"`, {
+      env: { ...process.env, GH_TOKEN: ghToken },
+      maxBuffer: 10 * 1024 * 1024,
+    });
     console.log('✅ Refinement comment posted');
     fs.unlinkSync(tmpFile);
     return true;
@@ -89,8 +89,10 @@ async function runRefinement() {
  */
 function generateRefinementComment(title: string, body: string): string {
   // Parse issue for technical details
-  const hasAcceptanceCriteria = /\([x ]\)|[\-\*]\s*\[|\-\s*criterion|criteria de aceite/i.test(body);
-  
+  const hasAcceptanceCriteria = /\([x ]\)|[\-\*]\s*\[|\-\s*criterion|criteria de aceite/i.test(
+    body,
+  );
+
   // Extract technical keywords
   const technicalKeywords: string[] = [];
   if (/sqs|queue/i.test(body)) technicalKeywords.push('SQS');
@@ -108,8 +110,8 @@ function generateRefinementComment(title: string, body: string): string {
 
   // Extract main responsibilities from body
   const responsibilities: string[] = [];
-  const lines = body.split('\n').filter(l => l.trim().length > 20);
-  lines.forEach(line => {
+  const lines = body.split('\n').filter((l) => l.trim().length > 20);
+  lines.forEach((line) => {
     if (/^[•\-\*\s]+/.test(line)) {
       const cleaned = line.replace(/^[•\-\*\s]+/, '').trim();
       if (cleaned.length > 10 && cleaned.length < 150) {
@@ -121,7 +123,7 @@ function generateRefinementComment(title: string, body: string): string {
   // If no bullets found, extract from first sentences
   if (responsibilities.length === 0) {
     const sentences = body.match(/[^.!?]+[.!?]+/g) || [];
-    sentences.slice(0, 3).forEach(s => {
+    sentences.slice(0, 3).forEach((s) => {
       const cleaned = s.trim();
       if (cleaned.length < 200) {
         responsibilities.push(cleaned);
@@ -130,20 +132,22 @@ function generateRefinementComment(title: string, body: string): string {
   }
 
   const resumo = title.substring(0, 150) || 'Issue sem título';
-  
+
   const criterios = !hasAcceptanceCriteria
     ? responsibilities.length > 0
       ? responsibilities.map((r, i) => `- [ ] ${r}`).join('\n')
       : '- [ ] Validar escopo com Product\n- [ ] Definir dependências externas\n- [ ] Identificar impacto em outros módulos'
     : 'Critérios mencionados na descrição';
 
-  const techStack = technicalKeywords.length > 0
-    ? `**Stack**: ${technicalKeywords.join(' • ')}`
-    : '**Stack**: A definir';
+  const techStack =
+    technicalKeywords.length > 0
+      ? `**Stack**: ${technicalKeywords.join(' • ')}`
+      : '**Stack**: A definir';
 
-  const abordagem = technicalKeywords.length > 0
-    ? `- **Tecnologias**: ${technicalKeywords.join(', ')}\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS\n- **Módulo**: \`src/modules/[x]\` (a confirmar com PM)`
-    : '- **Módulo**: \`src/modules/[x]\` (a confirmar)\n- **Arquivos**: Analisar durante fase dev\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS';
+  const abordagem =
+    technicalKeywords.length > 0
+      ? `- **Tecnologias**: ${technicalKeywords.join(', ')}\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS\n- **Módulo**: \`src/modules/[x]\` (a confirmar com PM)`
+      : '- **Módulo**: \`src/modules/[x]\` (a confirmar)\n- **Arquivos**: Analisar durante fase dev\n- **Padrões**: BaseResourceService, JWT, i18n, AuditTrail, SNS/SQS';
 
   return `## 🔍 Refinement Complete
 

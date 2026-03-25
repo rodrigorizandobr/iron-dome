@@ -63,9 +63,11 @@ export class AuditTrailApiService extends BaseResourceService<
 
     // Validate event type is pre-registered
     if (!REGISTERED_EVENT_TYPES.has(eventType)) {
-      throw new BadRequestException(
-        await this.i18n.translate('audit_trail.event_type_not_registered', { eventType }),
-      );
+      const message = this.i18n
+        ? this.i18n.translate('audit_trail.event_type_not_registered', { eventType })
+        : // eslint-disable-next-line i18next/no-literal-string
+          `Event type not registered: ${eventType}`;
+      throw new BadRequestException(message);
     }
 
     // Publish to SQS for async processing

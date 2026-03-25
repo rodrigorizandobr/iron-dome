@@ -32,7 +32,7 @@ export class CreateAuditTrailDto {
   })
   @IsEnum(AuditEventType)
   @IsNotEmpty()
-  eventType: AuditEventType;
+  eventType!: AuditEventType;
 
   /**
    * Actor identifier (user ID, system, etc).
@@ -40,7 +40,7 @@ export class CreateAuditTrailDto {
   @ApiProperty({ description: 'User or system that triggered the event' })
   @IsString()
   @IsNotEmpty()
-  actorId: string;
+  actorId!: string;
 
   /**
    * Resource type being audited (e.g., "TRANSACTION", "ACCOUNT", "USER").
@@ -48,7 +48,7 @@ export class CreateAuditTrailDto {
   @ApiProperty({ description: 'Type of resource affected' })
   @IsString()
   @IsNotEmpty()
-  resourceType: string;
+  resourceType!: string;
 
   /**
    * Resource ID being audited.
@@ -56,7 +56,7 @@ export class CreateAuditTrailDto {
   @ApiProperty({ description: 'ID of the affected resource' })
   @IsString()
   @IsNotEmpty()
-  resourceId: string;
+  resourceId!: string;
 
   /**
    * Action performed (CREATE, UPDATE, DELETE, VIEW, etc).
@@ -64,7 +64,7 @@ export class CreateAuditTrailDto {
   @ApiProperty({ description: 'Type of action performed' })
   @IsString()
   @IsNotEmpty()
-  action: string;
+  action!: string;
 
   /**
    * Event metadata (dynamic, depends on event type).
@@ -74,7 +74,7 @@ export class CreateAuditTrailDto {
     example: { amount: 1000, currency: 'BRL', status: 'COMPLETED' },
   })
   @IsObject()
-  metadata: Record<string, unknown>;
+  metadata!: Record<string, unknown>;
 
   /**
    * Optional description.
