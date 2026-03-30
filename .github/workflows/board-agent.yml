@@ -1,4 +1,10 @@
-name: Board Agent
+name: Board Agent v2
+
+# Event-driven + cron fallback
+# Copilot Coding Agent uses native custom_agent assignment
+# Custom agents defined in .github/agents/*.agent.md
+# Environment setup in .github/copilot-setup-steps.yml
+# Shared memory in .github/decisions.md
 
 on:
   workflow_dispatch:
@@ -8,13 +14,15 @@ on:
         required: false
         type: string
       target_column:
-        description: 'Move card to this column before processing (e.g. refinement)'
+        description: 'Move card to this column before processing'
         required: false
         type: string
   issues:
-    types: [opened]
+    types: [opened, assigned]
   projects_v2_item:
     types: [created, edited]
+  pull_request:
+    types: [opened, closed]
   schedule:
     - cron: '*/5 * * * *'
 
@@ -22,6 +30,10 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+
+concurrency:
+  group: board-agent
+  cancel-in-progress: false
 
 jobs:
   process:
@@ -38,7 +50,7 @@ jobs:
 
       - run: npm ci
 
-      - name: 🤖 Process board cards
+      - name: Process board cards
         env:
           GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}

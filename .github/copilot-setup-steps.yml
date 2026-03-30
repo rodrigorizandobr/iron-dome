@@ -1,0 +1,10 @@
+# Copilot Coding Agent — Environment Setup
+# This file defines the setup steps for Copilot's ephemeral sandbox.
+# Runs automatically when Copilot Coding Agent starts a task.
+
+steps:
+  - uses: actions/setup-node@v4
+    with:
+      node-version: '22'
+
+  - run: npm ci
