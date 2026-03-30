@@ -52,3 +52,6 @@ Every new module follows `src/modules/orders/` as reference:
 | testing    | board-agent (CI) | Run `npm run ci`, pass→pr, fail→dev          |
 | pr         | pr               | Create PR, finalize                          |
 | done       | —                | Merged, closed                               |
+
+- **#42** [2026-03-30 19:23 UTC]: Moved from refinement to dev
+- **#42** [2026-03-30 19:23 UTC]: Moved from testing to dev
