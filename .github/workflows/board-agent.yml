@@ -19,8 +19,6 @@ on:
         type: string
   issues:
     types: [opened, assigned]
-  projects_v2_item:
-    types: [created, edited]
   pull_request:
     types: [opened, closed]
   schedule:
