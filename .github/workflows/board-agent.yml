@@ -1,9 +1,9 @@
-name: Board Agent v2
+name: Board Agent v3
 
-# Event-driven orchestration (mostly reactive, minimal polling)
-# - issues/PRs/comments trigger immediately
-# - cron 1x/hour is a safety-net fallback only
-# Custom agents: .github/agents/*.agent.md
+# Runs every 1 minute. Processes all non-done cards without "processing" label.
+# For each card: find agent → assign Copilot → wait → advance → loop.
+# Testing column runs npm run ci directly (pass→next, fail→dev).
+# Agents: .github/agents/{column}.agent.md
 # Shared memory: .github/decisions.md
 
 on:
@@ -17,14 +17,8 @@ on:
         description: 'Move card to this column before processing'
         required: false
         type: string
-  issues:
-    types: [opened, assigned, labeled, unlabeled]
-  issue_comment:
-    types: [created]
-  pull_request:
-    types: [opened, closed]
   schedule:
-    - cron: '0 * * * *'
+    - cron: '* * * * *'
 
 permissions:
   contents: write
@@ -38,11 +32,7 @@ concurrency:
 jobs:
   process:
     runs-on: ubuntu-latest
-    # Skip noise: only react to Copilot/bot comments, not human chatter
-    if: >-
-      github.event_name != 'issue_comment' ||
-      contains(github.event.comment.user.login, '[bot]') ||
-      contains(github.event.comment.user.login, 'copilot')
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:

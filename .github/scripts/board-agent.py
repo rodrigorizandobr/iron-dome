@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Board Agent v2 -- Native Copilot Coding Agent orchestrator.
+Board Agent v3 — Copilot Coding Agent orchestrator.
 
-Uses GitHub native custom agent assignment (custom_agent field)
-instead of sending inline instructions. Copilot reads .agent.md
-files directly from the repository.
-
-Flow:
-  1. Poll board -> find cards without "processing" label
-  2. For each card: detect column -> assign Copilot with custom_agent
-  3. Testing column: run npm run ci directly (pass->pr, fail->dev)
-  4. Poll copilot-working cards for completion
-  5. Log decisions to .github/decisions.md
+Runs every 1 minute via cron. For each non-done card without
+"processing" label:
+  1. Check if card already has "processing" label → skip
+  2. Add "processing" label
+  3. Detect column (status) of the card
+  4. Find agent file at .github/agents/{column}.agent.md
+  5. Execute the agent (assign Copilot with custom_agent)
+  6. Testing column: run npm run ci (pass→next, fail→dev loop)
+  7. Remove "processing" label
+  8. Re-process card at its new column (recursive loop)
 """
 
 import json
@@ -21,7 +21,8 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
-# --- Environment ---
+# ── Environment ──────────────────────────────────────────
+
 GH_TOKEN = os.environ["GH_TOKEN"]
 PROJECT_NUMBER = int(os.environ["PROJECT_NUMBER"])
 OWNER = os.environ["OWNER"]
@@ -33,24 +34,15 @@ if "/" in REPO:
     REPO = REPO.split("/", 1)[1]
 FULL_REPO = f"{OWNER}/{REPO}"
 
-# --- Constants ---
+# ── Constants ────────────────────────────────────────────
+
 LABEL_PROCESSING = "processing"
-LABEL_COPILOT = "copilot-working"
 COPILOT_BOT = "copilot-swe-agent[bot]"
 TESTING_COLUMN = "testing"
 DEV_COLUMN = "dev"
 DONE_COLUMN = "done"
 TODO_COLUMN = "to-do"
-
-# Maps board column names to .agent.md file names (without extension).
-# Copilot reads .github/agents/{name}.agent.md automatically.
-AGENT_MAP = {
-    "refinement": "refinement",
-    "dev": "dev",
-    "dev-test": "dev-test",
-    "testing": "testing",
-    "pr": "pr",
-}
+AGENTS_DIR = ".github/agents"
 
 
 # ── Helpers ──────────────────────────────────────────────
@@ -63,9 +55,7 @@ def gh_gql(query, **variables):
         flag = "-F" if isinstance(v, int) else "-f"
         cmd += [flag, f"{k}={v}"]
     r = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
+        cmd, capture_output=True, text=True,
         env={**os.environ, "GH_TOKEN": GH_TOKEN},
     )
     if r.returncode != 0:
@@ -77,19 +67,14 @@ def gh_gql(query, **variables):
 def label_add(n, label):
     """Create label if missing, then add to issue."""
     env = {**os.environ, "GH_TOKEN": GH_TOKEN}
-    color = "fbca04" if label == LABEL_PROCESSING else "1d76db"
     subprocess.run(
-        [
-            "gh", "label", "create", label,
-            "--color", color, "--force", "--repo", FULL_REPO,
-        ],
+        ["gh", "label", "create", label, "--color", "fbca04",
+         "--force", "--repo", FULL_REPO],
         capture_output=True, env=env,
     )
     subprocess.run(
-        [
-            "gh", "issue", "edit", str(n),
-            "--add-label", label, "--repo", FULL_REPO,
-        ],
+        ["gh", "issue", "edit", str(n), "--add-label", label,
+         "--repo", FULL_REPO],
         capture_output=True, env=env,
     )
     print(f"  label +{label}")
@@ -98,14 +83,17 @@ def label_add(n, label):
 def label_remove(n, label):
     """Remove a label from issue."""
     subprocess.run(
-        [
-            "gh", "issue", "edit", str(n),
-            "--remove-label", label, "--repo", FULL_REPO,
-        ],
+        ["gh", "issue", "edit", str(n), "--remove-label", label,
+         "--repo", FULL_REPO],
         capture_output=True,
         env={**os.environ, "GH_TOKEN": GH_TOKEN},
     )
     print(f"  label -{label}")
+
+
+def has_label(card, label):
+    """Check if a card has a specific label."""
+    return label in card.get("labels", [])
 
 
 def post_comment(n, body):
@@ -115,10 +103,8 @@ def post_comment(n, body):
         with os.fdopen(fd, "w") as f:
             f.write(body)
         subprocess.run(
-            [
-                "gh", "issue", "comment", str(n),
-                "--body-file", tmp, "--repo", FULL_REPO,
-            ],
+            ["gh", "issue", "comment", str(n), "--body-file", tmp,
+             "--repo", FULL_REPO],
             capture_output=True,
             env={**os.environ, "GH_TOKEN": GH_TOKEN},
         )
@@ -128,13 +114,22 @@ def post_comment(n, body):
 
 
 def log_decision(issue_number, decision):
-    """Append a decision to .github/decisions.md (shared memory)."""
+    """Append a decision to .github/decisions.md."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     entry = f"\n- **#{issue_number}** [{ts}]: {decision}"
     path = ".github/decisions.md"
     if os.path.exists(path):
         with open(path, "a") as f:
             f.write(entry)
+
+
+def find_agent_file(column_name):
+    """Find agent file at .github/agents/{column}.agent.md."""
+    name = column_name.lower().strip()
+    path = os.path.join(AGENTS_DIR, f"{name}.agent.md")
+    if os.path.exists(path):
+        return path
+    return None
 
 
 # ── Board ────────────────────────────────────────────────
@@ -213,6 +208,51 @@ def get_board():
     }
 
 
+# ── Card movement ────────────────────────────────────────
+
+
+def move_card_to(board, card, target_col):
+    """Move a card to a specific named column."""
+    opt = next(
+        (o for o in board["status_field"]["options"]
+         if o["name"] == target_col),
+        None,
+    )
+    if not opt:
+        print(f"  Column '{target_col}' not found")
+        return False
+    r = gh_gql(
+        """mutation($p:ID!,$i:ID!,$f:ID!,$o:String!) {
+          updateProjectV2ItemFieldValue(input:{
+            projectId:$p itemId:$i fieldId:$f
+            value:{singleSelectOptionId:$o}
+          }) { projectV2Item { id } }
+        }""",
+        p=board["id"], i=card["item_id"],
+        f=board["status_field"]["id"], o=opt["id"],
+    )
+    ok = r and "errors" not in r
+    if ok:
+        old_col = card["column"]
+        card["column"] = target_col
+        print(f"  {old_col} -> {target_col}")
+        log_decision(card["number"],
+                     f"Moved from {old_col} to {target_col}")
+    return ok
+
+
+def move_next(board, card):
+    """Move a project card to the next sequential column."""
+    cols = board["columns"]
+    try:
+        idx = cols.index(card["column"])
+    except ValueError:
+        return False
+    if idx >= len(cols) - 1:
+        return False
+    return move_card_to(board, card, cols[idx + 1])
+
+
 def add_issue_to_project(board, issue_number):
     """Add an issue to the project board if not already present."""
     data = gh_gql(
@@ -242,13 +282,9 @@ def add_issue_to_project(board, issue_number):
     item_id = result["data"]["addProjectV2ItemById"]["item"]["id"]
     first_col = board["columns"][0] if board["columns"] else None
     card = {
-        "item_id": item_id,
-        "number": int(issue_number),
-        "title": issue["title"],
-        "body": issue.get("body") or "",
-        "column": first_col,
-        "labels": [],
-        "assignees": [],
+        "item_id": item_id, "number": int(issue_number),
+        "title": issue["title"], "body": issue.get("body") or "",
+        "column": first_col, "labels": [], "assignees": [],
         "state": issue.get("state", "OPEN"),
     }
     board["cards"].append(card)
@@ -256,174 +292,132 @@ def add_issue_to_project(board, issue_number):
     return card
 
 
-# ── Card movement ────────────────────────────────────────
+# ── Copilot ──────────────────────────────────────────────
 
 
-def move_card_to(board, card, target_col):
-    """Move a card to a specific named column."""
-    opt = next(
-        (o for o in board["status_field"]["options"]
-         if o["name"] == target_col),
-        None,
-    )
-    if not opt:
-        print(f"  Column '{target_col}' not found")
-        return False
-    r = gh_gql(
-        """mutation($p:ID!,$i:ID!,$f:ID!,$o:String!) {
-          updateProjectV2ItemFieldValue(input:{
-            projectId:$p itemId:$i fieldId:$f
-            value:{singleSelectOptionId:$o}
-          }) { projectV2Item { id } }
-        }""",
-        p=board["id"],
-        i=card["item_id"],
-        f=board["status_field"]["id"],
-        o=opt["id"],
-    )
-    ok = r and "errors" not in r
-    if ok:
-        old_col = card["column"]
-        card["column"] = target_col
-        print(f"  {old_col} -> {target_col}")
-        log_decision(
-            card["number"], f"Moved from {old_col} to {target_col}",
-        )
-    return ok
-
-
-def move_next(board, card):
-    """Move a project card to the next sequential column."""
-    cols = board["columns"]
-    try:
-        idx = cols.index(card["column"])
-    except ValueError:
-        return False
-    if idx >= len(cols) - 1:
-        return False
-    return move_card_to(board, card, cols[idx + 1])
-
-
-# ── Copilot assignment ───────────────────────────────────
-
-
-def assign_copilot(number, custom_agent_name):
-    """Assign Copilot Coding Agent using native custom_agent field."""
+def assign_copilot(number, agent_name):
+    """Assign Copilot Coding Agent with a custom_agent name."""
     payload = json.dumps({
         "assignees": [COPILOT_BOT],
         "agent_assignment": {
             "target_repo": FULL_REPO,
             "base_branch": "main",
             "custom_instructions": "",
-            "custom_agent": custom_agent_name,
+            "custom_agent": agent_name,
             "model": "",
         },
     })
     r = subprocess.run(
-        [
-            "gh", "api", "--method", "POST",
-            "-H", "Accept: application/vnd.github+json",
-            "-H", "X-GitHub-Api-Version: 2022-11-28",
-            f"/repos/{FULL_REPO}/issues/{number}/assignees",
-            "--input", "-",
-        ],
-        input=payload,
-        capture_output=True,
-        text=True,
+        ["gh", "api", "--method", "POST",
+         "-H", "Accept: application/vnd.github+json",
+         "-H", "X-GitHub-Api-Version: 2022-11-28",
+         f"/repos/{FULL_REPO}/issues/{number}/assignees",
+         "--input", "-"],
+        input=payload, capture_output=True, text=True,
         env={**os.environ, "GH_TOKEN": GH_TOKEN},
     )
     if r.returncode == 0:
-        print(f"  Copilot assigned (agent: {custom_agent_name})")
+        print(f"  Copilot assigned (agent: {agent_name})")
         return True
-    print(f"  REST failed: {r.stderr.strip()[:200]}")
-    # Fallback: mention-based assignment
-    post_comment(
-        number,
-        f"@copilot Use the `{custom_agent_name}` agent for this task.",
-    )
+    print(f"  REST assign failed: {r.stderr.strip()[:200]}")
+    post_comment(number,
+                 f"@copilot Use the `{agent_name}` agent for this task.")
     return True
 
 
-def check_copilot_done(number):
-    """Check if Copilot has finished working on an issue."""
+def is_copilot_done(number):
+    """Check if Copilot finished (PR exists or unassigned)."""
     env = {**os.environ, "GH_TOKEN": GH_TOKEN}
-
-    # Check for open PRs by Copilot referencing this issue
+    # Check open PRs by Copilot mentioning this issue
     r = subprocess.run(
-        [
-            "gh", "pr", "list", "--repo", FULL_REPO,
-            "--state", "open", "--json", "number,title,headRefName,author",
-            "--jq",
-            '[.[] | select(.author.login == "copilot-swe-agent")]',
-        ],
+        ["gh", "pr", "list", "--repo", FULL_REPO,
+         "--state", "open", "--json", "number,title,author",
+         "--jq",
+         '[.[] | select(.author.login == "copilot-swe-agent")]'],
         capture_output=True, text=True, env=env,
     )
     if r.returncode == 0 and r.stdout.strip():
-        for pr in json.loads(r.stdout):
-            title = pr.get("title", "").lower()
-            if f"#{number}" in title or f"issue {number}" in title:
-                print(f"  Copilot PR found: #{pr['number']}")
+        prs = json.loads(r.stdout)
+        for pr in prs:
+            t = pr.get("title", "").lower()
+            if f"#{number}" in t or f"issue {number}" in t:
                 return True
-
-    # Check if Copilot unassigned itself (session finished)
+    # Check if Copilot unassigned itself
     r2 = subprocess.run(
-        [
-            "gh", "issue", "view", str(number), "--repo", FULL_REPO,
-            "--json", "assignees",
-            "--jq",
-            '[.assignees[].login] '
-            '| map(select(. == "copilot-swe-agent")) | length',
-        ],
+        ["gh", "issue", "view", str(number), "--repo", FULL_REPO,
+         "--json", "assignees", "--jq",
+         '[.assignees[].login]'
+         ' | map(select(. == "copilot-swe-agent")) | length'],
         capture_output=True, text=True, env=env,
     )
     if r2.returncode == 0 and r2.stdout.strip() == "0":
-        # Copilot unassigned — check all PRs (including merged)
-        r3 = subprocess.run(
-            [
-                "gh", "pr", "list", "--repo", FULL_REPO,
-                "--state", "all", "--json", "number,title,author",
-                "--jq",
-                '[.[] | select(.author.login == "copilot-swe-agent")]',
-            ],
-            capture_output=True, text=True, env=env,
-        )
-        if r3.returncode == 0 and r3.stdout.strip():
-            for pr in json.loads(r3.stdout):
-                title = pr.get("title", "").lower()
-                if f"#{number}" in title or f"issue {number}" in title:
-                    print(f"  Copilot finished, PR: #{pr['number']}")
-                    return True
-        print(f"  Copilot unassigned (session finished)")
         return True
+    return False
 
-    # Check comments from Copilot
-    r4 = subprocess.run(
-        [
-            "gh", "issue", "view", str(number), "--repo", FULL_REPO,
-            "--json", "comments", "--jq",
-            '[.comments[] | select('
-            '.author.login == "copilot-swe-agent" or '
-            '.author.login == "copilot-swe-agent[bot]"'
-            ')] | length',
-        ],
-        capture_output=True, text=True, env=env,
-    )
-    if r4.returncode == 0 and r4.stdout.strip():
-        count = int(r4.stdout.strip())
-        if count > 0:
-            print(f"  Copilot posted {count} comment(s)")
+
+def wait_copilot(number, max_checks=60, interval=60):
+    """Poll until Copilot finishes, up to max_checks times."""
+    import time
+    for i in range(max_checks):
+        if is_copilot_done(number):
+            print(f"  Copilot done (check {i + 1})")
             return True
-
-    print(f"  Copilot still working on #{number}")
+        print(f"  Copilot working... ({i + 1}/{max_checks})")
+        time.sleep(interval)
+    print(f"  Copilot timeout after {max_checks} checks")
     return False
 
 
 # ── Testing (CI) ─────────────────────────────────────────
 
 
+def find_copilot_branch(number):
+    """Find the branch Copilot used (copilot/* or feat/issue-N)."""
+    env = {**os.environ, "GH_TOKEN": GH_TOKEN}
+    # First: check PRs by Copilot for this issue
+    r = subprocess.run(
+        ["gh", "pr", "list", "--repo", FULL_REPO,
+         "--state", "all", "--json", "number,title,headRefName,author",
+         "--jq",
+         '[.[] | select(.author.login == "copilot-swe-agent")]'],
+        capture_output=True, text=True, env=env,
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        for pr in json.loads(r.stdout):
+            t = pr.get("title", "").lower()
+            if f"#{number}" in t or f"issue {number}" in t:
+                branch = pr.get("headRefName", "")
+                if branch:
+                    print(f"  Found Copilot branch: {branch}")
+                    return branch
+    # Fallback: try conventional name
+    r2 = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", f"feat/issue-{number}"],
+        capture_output=True, text=True, env=env,
+    )
+    if r2.returncode == 0 and r2.stdout.strip():
+        return f"feat/issue-{number}"
+    # Also check copilot/* branches
+    r3 = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin"],
+        capture_output=True, text=True, env=env,
+    )
+    if r3.returncode == 0:
+        for line in r3.stdout.strip().split("\n"):
+            if not line:
+                continue
+            ref = line.split("\t")[-1].replace("refs/heads/", "")
+            if "copilot" in ref and str(number) in ref:
+                print(f"  Found copilot branch: {ref}")
+                return ref
+    return None
+
+
 def run_testing_ci(number):
-    """Checkout the feature branch and run npm run ci."""
-    branch = f"feat/issue-{number}"
+    """Find the correct branch and run npm run ci."""
+    branch = find_copilot_branch(number)
+    if not branch:
+        return False, f"No branch found for issue #{number}"
     env = {**os.environ, "GH_TOKEN": GH_TOKEN, "HUSKY": "0", "CI": "true"}
     run = lambda cmd, **kw: subprocess.run(
         cmd, capture_output=True, text=True, env=env, **kw,
@@ -431,150 +425,144 @@ def run_testing_ci(number):
     run(["git", "config", "user.name", "Board Agent"])
     run(["git", "config", "user.email", "board-agent@iron-dome.local"])
     run(["git", "fetch", "origin"])
-
     checkout = run(["git", "checkout", branch])
     if checkout.returncode != 0:
         checkout = run(
-            ["git", "checkout", "-b", branch, f"origin/{branch}"],
-        )
+            ["git", "checkout", "-b", branch, f"origin/{branch}"])
         if checkout.returncode != 0:
-            return False, f"Branch {branch} not found"
+            run(["git", "checkout", "main", "--force"])
+            return False, f"Branch {branch} not found on remote"
     else:
         run(["git", "pull", "origin", branch, "--rebase"])
-
     install = run(["npm", "ci"])
     if install.returncode != 0:
         run(["git", "checkout", "main", "--force"])
         return False, f"npm ci failed:\n{install.stderr.strip()[-1000:]}"
-
     ci = run(["npm", "run", "ci"], timeout=600)
     combined = (ci.stdout + "\n" + ci.stderr).strip()
     run(["git", "checkout", "main", "--force"])
     if ci.returncode == 0:
-        return True, "All CI checks passed (7/7)."
+        return True, "All CI checks passed."
     return False, combined[-2000:]
 
 
-def handle_testing(card, board):
-    """Run npm run ci. Pass -> next. Fail -> back to dev."""
-    n = card["number"]
-    print(f"  Running CI on feat/issue-{n}...")
-    success, output = run_testing_ci(n)
-    if success:
-        post_comment(n, f"## CI Passed (7/7)\n\n{output}")
-        log_decision(n, "CI passed -- advancing to pr")
-        moved = move_next(board, card)
-        if moved:
-            print(f"  CI passed, now in '{card['column']}'")
-            return True
-        return False
-
-    post_comment(
-        n,
-        f"## CI Failed\n\nMoving back to **{DEV_COLUMN}**.\n\n"
-        f"```\n{output}\n```",
-    )
-    log_decision(n, f"CI failed -- returning to {DEV_COLUMN}")
-    moved = move_card_to(board, card, DEV_COLUMN)
-    if moved:
-        print(f"  CI failed, back to '{DEV_COLUMN}'")
-        return True
-    return False
-
-
-# ── Card processing ──────────────────────────────────────
+# ── Core: process one card ───────────────────────────────
 
 
 def process_card(card, board):
-    """Process a single card using native custom_agent assignment."""
+    """
+    Process a single card following the 9-step flow:
+    1. Skip if done/to-do
+    2. Skip if already has "processing" label
+    3. Add "processing" label
+    4. Detect column name
+    5. Find agent at .github/agents/{column}.agent.md
+    6. Execute agent (assign Copilot) — or run CI for testing
+    7. Remove "processing" label
+    8. Re-process at new column (loop)
+    """
     cols = board["columns"]
     last_col = cols[-1] if cols else DONE_COLUMN
 
-    while True:
-        n = card["number"]
-        col = card["column"]
-
-        if col is None or col == last_col or col == TODO_COLUMN:
-            print(f"  #{n} in '{col}', skipping")
-            break
-
-        print(f"\n{'=' * 50}")
-        print(f"Processing #{n} -- {card['title']} [{col}]")
-
-        if LABEL_PROCESSING in card.get("labels", []):
-            print(f"  Already processing, skipping")
-            break
-
-        agent_name = AGENT_MAP.get(col.lower())
-        if not agent_name:
-            print(f"  No agent for column '{col}'")
-            break
-
-        label_add(n, LABEL_PROCESSING)
-
-        # Testing column runs CI directly (synchronous)
-        if col.lower() == TESTING_COLUMN:
-            handled = handle_testing(card, board)
-            label_remove(n, LABEL_PROCESSING)
-            if not handled:
-                break
-            continue
-
-        # All other columns: assign Copilot with custom_agent
-        ok = assign_copilot(n, agent_name)
-        if ok:
-            label_add(n, LABEL_COPILOT)
-            post_comment(
-                n,
-                f"Copilot assigned -- **{col}** phase\n\n"
-                f"Agent: `{agent_name}` | "
-                f"File: `.github/agents/{agent_name}.agent.md`\n\n"
-                f"Reads repo instructions + "
-                f"`.github/decisions.md` for shared context.",
-            )
-            log_decision(
-                n, f"Copilot assigned for '{col}' (agent: {agent_name})",
-            )
-        else:
-            post_comment(n, f"Failed to assign Copilot for **{col}**.")
-
-        label_remove(n, LABEL_PROCESSING)
-        break
-
-
-def process_copilot_card(card, board):
-    """Check if Copilot finished and advance the card."""
     n = card["number"]
     col = card["column"]
 
-    if not check_copilot_done(n):
+    # Step 1: skip done / to-do / no column
+    if col is None or col.lower() == last_col.lower():
+        return
+    if col.lower() == TODO_COLUMN.lower():
         return
 
+    # Step 2: skip if already processing
+    if has_label(card, LABEL_PROCESSING):
+        print(f"  #{n} already has '{LABEL_PROCESSING}', skipping")
+        return
+
+    print(f"\n{'=' * 50}")
+    print(f"Processing #{n} -- {card['title']} [{col}]")
+
+    # Step 3: add processing label
     label_add(n, LABEL_PROCESSING)
-    label_remove(n, LABEL_COPILOT)
-    post_comment(n, f"Copilot completed **{col}**. Advancing.")
-    log_decision(n, f"Copilot completed '{col}' -- advancing")
+    card["labels"].append(LABEL_PROCESSING)
 
-    moved = move_next(board, card)
-    if moved:
-        card["labels"] = [
-            lb for lb in card["labels"] if lb != LABEL_COPILOT
-        ]
-        print(f"  Now in '{card['column']}'")
+    # Step 4: detect column
+    col_lower = col.lower().strip()
+
+    # Step 5: find agent file
+    agent_file = find_agent_file(col_lower)
+    if not agent_file:
+        post_comment(n,
+                     f"No agent found for column **{col}**.\n\n"
+                     f"Expected file: `{AGENTS_DIR}/{col_lower}.agent.md`")
+        log_decision(n, f"No agent for column '{col}'")
         label_remove(n, LABEL_PROCESSING)
-        # Recursively process next column
-        process_card(card, board)
+        card["labels"] = [
+            lb for lb in card["labels"] if lb != LABEL_PROCESSING
+        ]
         return
 
+    agent_name = col_lower  # agent name = column name (lowercase)
+    print(f"  Agent: {agent_file}")
+
+    # Step 6+7: execute agent
+    if col_lower == TESTING_COLUMN:
+        # Testing: run npm run ci directly
+        success, output = run_testing_ci(n)
+        if success:
+            post_comment(n, f"## CI Passed\n\n{output}")
+            log_decision(n, "CI passed -- advancing")
+            move_next(board, card)
+        else:
+            post_comment(
+                n,
+                f"## CI Failed\n\nMoving back to **{DEV_COLUMN}**.\n\n"
+                f"```\n{output}\n```")
+            log_decision(n, f"CI failed -- returning to {DEV_COLUMN}")
+            move_card_to(board, card, DEV_COLUMN)
+    else:
+        # All other columns: assign Copilot and wait
+        assign_copilot(n, agent_name)
+        post_comment(
+            n,
+            f"Copilot assigned -- **{col}** phase\n\n"
+            f"Agent: `{agent_name}` | "
+            f"File: `{agent_file}`")
+        log_decision(n,
+                     f"Copilot assigned for '{col}' (agent: {agent_name})")
+
+        # Wait for Copilot to finish
+        done = wait_copilot(n)
+        if done:
+            post_comment(n, f"Copilot completed **{col}**. Advancing.")
+            log_decision(n, f"Copilot completed '{col}'")
+            move_next(board, card)
+        else:
+            post_comment(n,
+                         f"Copilot timeout on **{col}**. "
+                         f"Will retry next run.")
+            log_decision(n, f"Copilot timeout on '{col}'")
+
+    # Step 8: remove processing label
     label_remove(n, LABEL_PROCESSING)
+    card["labels"] = [
+        lb for lb in card["labels"] if lb != LABEL_PROCESSING
+    ]
+
+    # Step 9: re-process at new column (recursive)
+    new_col = card["column"]
+    if (new_col and new_col.lower() != last_col.lower()
+            and new_col.lower() != TODO_COLUMN.lower()
+            and new_col != col):
+        print(f"  Re-processing #{n} at new column '{new_col}'")
+        process_card(card, board)
 
 
 # ── Main ─────────────────────────────────────────────────
 
 
 def main():
-    """Board Agent v2 entry point."""
-    print("Board Agent v2 (Native Custom Agents)")
+    """Board Agent v3 entry point."""
+    print("Board Agent v3")
     print(f"  {FULL_REPO} -- Project #{PROJECT_NUMBER}")
 
     board = get_board()
@@ -583,68 +571,42 @@ def main():
         sys.exit(1)
 
     cols = board["columns"]
-    last_col = cols[-1] if cols else DONE_COLUMN
     print(f"  Columns: {' -> '.join(cols)}")
 
-    # Add manual issue to project if not present
+    # Manual issue: add to project if needed
     if MANUAL_ISSUE:
         found = any(
-            str(c["number"]) == MANUAL_ISSUE for c in board["cards"]
-        )
+            str(c["number"]) == MANUAL_ISSUE for c in board["cards"])
         if not found:
             add_issue_to_project(board, MANUAL_ISSUE)
 
-    # Override column for manual dispatch
+    # Manual column override
     if TARGET_COLUMN and MANUAL_ISSUE:
         target_card = next(
             (c for c in board["cards"]
-             if str(c["number"]) == MANUAL_ISSUE),
-            None,
-        )
+             if str(c["number"]) == MANUAL_ISSUE), None)
         if target_card:
             move_card_to(board, target_card, TARGET_COLUMN)
 
-    processed = False
-
-    # Phase 1: Poll copilot-working cards
-    copilot_cards = [
+    # Get all cards that are not done and not processing
+    last_col = cols[-1] if cols else DONE_COLUMN
+    eligible = [
         c for c in board["cards"]
         if c["column"] is not None
-        and c["column"] != last_col
-        and LABEL_COPILOT in c["labels"]
+        and c["column"].lower() != last_col.lower()
+        and c["column"].lower() != TODO_COLUMN.lower()
+        and not has_label(c, LABEL_PROCESSING)
         and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
     ]
-    if copilot_cards:
-        processed = True
-        print(f"\n  Polling {len(copilot_cards)} Copilot-working card(s)")
-        for card in copilot_cards:
-            print(f"\n{'=' * 50}")
-            print(
-                f"Checking #{card['number']} -- "
-                f"{card['title']} [{card['column']}]",
-            )
-            process_copilot_card(card, board)
 
-    # Phase 2: Process new cards (skip to-do and done)
-    new_cards = [
-        c for c in board["cards"]
-        if c["column"] is not None
-        and c["column"] != last_col
-        and c["column"] != TODO_COLUMN
-        and LABEL_COPILOT not in c["labels"]
-        and LABEL_PROCESSING not in c["labels"]
-        and (not MANUAL_ISSUE or str(c["number"]) == MANUAL_ISSUE)
-    ]
-    if new_cards:
-        processed = True
-        print(f"\n  Processing {len(new_cards)} new card(s)")
-        for card in new_cards:
+    if not eligible:
+        print("No cards to process")
+    else:
+        print(f"\n  Processing {len(eligible)} card(s)")
+        for card in eligible:
             process_card(card, board)
 
-    if not processed:
-        print("No cards to process")
-
-    print("\nBoard Agent v2 finished")
+    print("\nBoard Agent v3 finished")
 
 
 if __name__ == "__main__":
