@@ -118,7 +118,7 @@ export class AuditTrailProcessorService extends BaseProvider implements OnModule
 
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const now = new Date().toISOString();
-    const tableName = this.getResourceName('dynamodb', ENTITY_TYPE);
+    const tableName = this.dynamo.getResourceName('dynamodb', 'main');
 
     // eslint-disable-next-line i18next/no-literal-string
     const pk = `TENANT#${String(tenantId)}#${ENTITY_TYPE}`;
