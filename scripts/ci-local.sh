@@ -70,8 +70,8 @@ print_summary() {
 print_header
 
 # --- GATE 1: Security Audit (prod) ---
-step "Security Audit — npm audit --only=prod"
-if npm audit --audit-level=high --only=prod --quiet 2>&1; then
+step "Security Audit — npm audit --omit=dev"
+if npm audit --audit-level=high --omit=dev --quiet 2>&1; then
   pass "Security Audit (prod)"
 else
   fail "Security Audit (prod)"
