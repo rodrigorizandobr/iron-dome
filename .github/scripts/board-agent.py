@@ -42,6 +42,7 @@ TESTING_COLUMN = "testing"
 DEV_COLUMN = "dev"
 DONE_COLUMN = "done"
 TODO_COLUMN = "to-do"
+PR_COLUMN = "pr"
 AGENTS_DIR = ".github/agents"
 
 
@@ -160,6 +161,13 @@ def get_board():
                 labels(first: 10) { nodes { name } }
                 assignees(first: 10) { nodes { login } }
               }
+              ... on PullRequest {
+                number title body state isDraft
+                labels(first: 10) { nodes { name } }
+                assignees(first: 10) { nodes { login } }
+                merged
+                author { login }
+              }
             }
           }}
         }
@@ -190,6 +198,7 @@ def get_board():
         assignees = [
             a["login"] for a in c.get("assignees", {}).get("nodes", [])
         ]
+        is_pr = "merged" in c  # PullRequest has 'merged' field
         cards.append({
             "item_id": item["id"],
             "number": c["number"],
@@ -199,6 +208,10 @@ def get_board():
             "labels": labels,
             "assignees": assignees,
             "state": c.get("state", "OPEN"),
+            "type": "pr" if is_pr else "issue",
+            "merged": c.get("merged", False),
+            "isDraft": c.get("isDraft", False),
+            "author": c.get("author", {}).get("login", ""),
         })
     return {
         "id": proj["id"],
@@ -588,11 +601,33 @@ def main():
         if target_card:
             move_card_to(board, target_card, TARGET_COLUMN)
 
-    # Get all cards that are not done and not processing
+    # ── Handle PR cards (move Copilot PRs to correct column) ──
+    pr_cards = [
+        c for c in board["cards"]
+        if c.get("type") == "pr" and c["column"] is not None
+    ]
+    for pr_card in pr_cards:
+        target = None
+        if pr_card["merged"]:
+            target = DONE_COLUMN
+        elif pr_card["state"] == "MERGED":
+            target = DONE_COLUMN
+        elif pr_card["state"] == "CLOSED":
+            target = DONE_COLUMN
+        else:
+            target = PR_COLUMN
+        current = pr_card["column"].lower().strip()
+        if current != target.lower():
+            print(f"\n  PR #{pr_card['number']} "
+                  f"({pr_card['column']}) -> {target}")
+            move_card_to(board, pr_card, target)
+
+    # ── Get all issue cards that are not done and not processing ──
     last_col = cols[-1] if cols else DONE_COLUMN
     eligible = [
         c for c in board["cards"]
-        if c["column"] is not None
+        if c.get("type") == "issue"
+        and c["column"] is not None
         and c["column"].lower() != last_col.lower()
         and c["column"].lower() != TODO_COLUMN.lower()
         and not has_label(c, LABEL_PROCESSING)
